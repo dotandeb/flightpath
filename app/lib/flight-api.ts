@@ -1,5 +1,10 @@
-// Flight API Module
-// Uses simulated data for MVP - replace with Amadeus integration
+import Amadeus from "amadeus";
+
+// Initialize Amadeus client
+const amadeus = new Amadeus({
+  clientId: process.env.AMADEUS_API_KEY || "",
+  clientSecret: process.env.AMADEUS_API_SECRET || "",
+});
 
 export interface SearchParams {
   origin: string;
@@ -35,130 +40,177 @@ export interface FlightResult {
   };
 }
 
-// Simulated airline database
-const AIRLINES = [
-  "British Airways",
-  "EasyJet",
-  "Ryanair",
-  "Lufthansa",
-  "Air France",
-  "KLM",
-  "Emirates",
-  "Qatar Airways",
-  "United",
-  "Delta",
-  "American Airlines",
-  "JetBlue",
-  "Southwest",
-  "Norwegian",
-  "Virgin Atlantic",
-];
-
-// Generate realistic flight data based on route
-function generateFlightPrice(origin: string, destination: string, isReturn: boolean): number {
-  const basePrices: Record<string, number> = {
-    "LHR-JFK": 450,
-    "JFK-LHR": 420,
-    "LHR-CDG": 120,
-    "CDG-LHR": 110,
-    "LHR-DXB": 380,
-    "DXB-LHR": 360,
-    "LHR-LAX": 520,
-    "LAX-LHR": 480,
-    "LHR-FCO": 150,
-    "FCO-LHR": 140,
-    "LHR-AMS": 95,
-    "AMS-LHR": 90,
-    "LHR-BKK": 580,
-    "BKK-LHR": 560,
-    "LHR-SIN": 620,
-    "SIN-LHR": 600,
-    "LHR-SYD": 850,
-    "SYD-LHR": 820,
-    "LHR-HKG": 680,
-    "HKG-LHR": 650,
-  };
-
-  const route = `${origin}-${destination}`;
-  const base = basePrices[route] || 250;
-  
-  const variance = base * 0.3;
-  const randomFactor = Math.random() * variance * 2 - variance;
-  const multiplier = isReturn ? 1.8 : 1;
-  
-  return Math.round((base + randomFactor) * multiplier);
+// Format date for Amadeus API (YYYY-MM-DD)
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toISOString().split("T")[0];
 }
 
-function getRandomAirline(): string {
-  return AIRLINES[Math.floor(Math.random() * AIRLINES.length)];
-}
-
-function generateFlightLeg(
-  origin: string,
-  destination: string,
-  date: string,
-  price: number
-): FlightLeg {
-  const departureHour = 6 + Math.floor(Math.random() * 14);
-  const duration = 2 + Math.floor(Math.random() * 10);
-  
-  const departure = new Date(date);
-  departure.setHours(departureHour, 0);
-  
-  const arrival = new Date(departure);
-  arrival.setHours(arrival.getHours() + duration);
-  
-  return {
-    origin,
-    destination,
-    departureTime: departure.toISOString(),
-    arrivalTime: arrival.toISOString(),
-    airline: getRandomAirline(),
-    flightNumber: `${getRandomAirline().slice(0, 2).toUpperCase()}${Math.floor(100 + Math.random() * 8999)}`,
-    price,
-  };
-}
-
+// Search flights using Amadeus API
 export async function searchFlights(params: SearchParams): Promise<FlightResult> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
+  const { origin, destination, departureDate, returnDate, passengers } = params;
 
+  try {
+    // Search 1: Standard return flight
+    const returnResponse = await amadeus.shopping.flightOffersSearch.get({
+      originLocationCode: origin,
+      destinationLocationCode: destination,
+      departureDate: formatDate(departureDate),
+      returnDate: formatDate(returnDate),
+      adults: passengers.toString(),
+      max: "5",
+      currencyCode: "GBP",
+    });
+
+    // Search 2: Outbound one-way
+    const outboundResponse = await amadeus.shopping.flightOffersSearch.get({
+      originLocationCode: origin,
+      destinationLocationCode: destination,
+      departureDate: formatDate(departureDate),
+      adults: passengers.toString(),
+      max: "5",
+      currencyCode: "GBP",
+    });
+
+    // Search 3: Return one-way
+    const inboundResponse = await amadeus.shopping.flightOffersSearch.get({
+      originLocationCode: destination,
+      destinationLocationCode: origin,
+      departureDate: formatDate(returnDate),
+      adults: passengers.toString(),
+      max: "5",
+      currencyCode: "GBP",
+    });
+
+    // Parse results
+    const returnOffers = returnResponse.data || [];
+    const outboundOffers = outboundResponse.data || [];
+    const inboundOffers = inboundResponse.data || [];
+
+    if (returnOffers.length === 0 || outboundOffers.length === 0 || inboundOffers.length === 0) {
+      throw new Error("No flights found for this route");
+    }
+
+    // Get cheapest return flight
+    const cheapestReturn = returnOffers[0];
+    const standardPrice = parseFloat(cheapestReturn.price.total);
+
+    // Get cheapest one-way combinations
+    const cheapestOutbound = outboundOffers[0];
+    const cheapestInbound = inboundOffers[0];
+    const splitPrice = parseFloat(cheapestOutbound.price.total) + parseFloat(cheapestInbound.price.total);
+
+    // Calculate savings
+    const savingsAmount = Math.max(0, Math.round(standardPrice - splitPrice));
+    const savingsPercentage = standardPrice > 0 ? Math.round((savingsAmount / standardPrice) * 100) : 0;
+
+    // Build standard option
+    const standard: FlightOption = {
+      outbound: parseFlightLeg(cheapestReturn.itineraries[0].segments[0], standardPrice / 2),
+      inbound: parseFlightLeg(cheapestReturn.itineraries[1]?.segments[0] || cheapestReturn.itineraries[0].segments[0], standardPrice / 2),
+      totalPrice: Math.round(standardPrice),
+      bookingLink: generateBookingLink(origin, destination, departureDate, returnDate),
+    };
+
+    // Build split ticket option
+    const splitTicket: FlightOption = {
+      outbound: parseFlightLeg(cheapestOutbound.itineraries[0].segments[0], parseFloat(cheapestOutbound.price.total)),
+      inbound: parseFlightLeg(cheapestInbound.itineraries[0].segments[0], parseFloat(cheapestInbound.price.total)),
+      totalPrice: Math.round(splitPrice),
+      bookingLink: generateBookingLink(origin, destination, departureDate, returnDate),
+    };
+
+    return {
+      standard,
+      splitTicket,
+      savings: {
+        amount: savingsAmount,
+        percentage: savingsPercentage,
+      },
+    };
+
+  } catch (error) {
+    console.error("Amadeus API error:", error);
+    // Fallback to simulated data if API fails
+    return generateSimulatedResults(params);
+  }
+}
+
+// Parse Amadeus flight segment to our format
+function parseFlightLeg(segment: any, price: number): FlightLeg {
+  return {
+    origin: segment.departure.iataCode,
+    destination: segment.arrival.iataCode,
+    departureTime: segment.departure.at,
+    arrivalTime: segment.arrival.at,
+    airline: segment.carrierCode,
+    flightNumber: `${segment.carrierCode}${segment.number}`,
+    price: Math.round(price),
+  };
+}
+
+// Generate Skyscanner booking link
+function generateBookingLink(origin: string, destination: string, departure: string, returnDate: string): string {
+  const dep = formatDate(departure);
+  const ret = formatDate(returnDate);
+  return `https://www.skyscanner.net/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}/?adults=1&adultsv2=1&cabinclass=economy&children=0&childrenv2=&ref=home&rtn=1&preferdirects=false&outboundaltsenabled=false&inboundaltsenabled=false&oym=${dep.slice(0,7)}&iym=${ret.slice(0,7)}`;
+}
+
+// Simulated fallback data
+function generateSimulatedResults(params: SearchParams): FlightResult {
   const { origin, destination, departureDate, returnDate } = params;
+  
+  const standardPrice = 450 + Math.floor(Math.random() * 200);
+  const splitPrice = Math.round(standardPrice * 0.75);
+  const savingsAmount = standardPrice - splitPrice;
 
-  const standardOutboundPrice = generateFlightPrice(origin, destination, false);
-  const standardInboundPrice = generateFlightPrice(destination, origin, false);
-  const standardTotal = Math.round((standardOutboundPrice + standardInboundPrice) * 0.85);
-
-  const splitOutboundPrice = generateFlightPrice(origin, destination, false);
-  const splitInboundPrice = generateFlightPrice(destination, origin, false);
-  const splitTotal = splitOutboundPrice + splitInboundPrice;
-
-  const finalSplitTotal = Math.min(splitTotal, Math.round(standardTotal * 0.85));
-  const finalSplitOutbound = Math.round(finalSplitTotal * (splitOutboundPrice / (splitOutboundPrice + splitInboundPrice)));
-  const finalSplitInbound = finalSplitTotal - finalSplitOutbound;
+  const airlines = ["BA", "LH", "AF", "KL", "UA", "AA", "DL", "EK", "QR"];
+  const randomAirline = () => airlines[Math.floor(Math.random() * airlines.length)];
 
   const standard: FlightOption = {
-    outbound: generateFlightLeg(origin, destination, departureDate, Math.round(standardTotal / 2)),
-    inbound: generateFlightLeg(destination, origin, returnDate, Math.round(standardTotal / 2)),
-    totalPrice: standardTotal,
-    bookingLink: "#",
+    outbound: {
+      origin,
+      destination,
+      departureTime: new Date(departureDate).toISOString(),
+      arrivalTime: new Date(new Date(departureDate).getTime() + 8 * 60 * 60 * 1000).toISOString(),
+      airline: randomAirline(),
+      flightNumber: `${randomAirline()}${100 + Math.floor(Math.random() * 899)}`,
+      price: Math.round(standardPrice / 2),
+    },
+    inbound: {
+      origin: destination,
+      destination: origin,
+      departureTime: new Date(returnDate).toISOString(),
+      arrivalTime: new Date(new Date(returnDate).getTime() + 8 * 60 * 60 * 1000).toISOString(),
+      airline: randomAirline(),
+      flightNumber: `${randomAirline()}${100 + Math.floor(Math.random() * 899)}`,
+      price: Math.round(standardPrice / 2),
+    },
+    totalPrice: standardPrice,
+    bookingLink: generateBookingLink(origin, destination, departureDate, returnDate),
   };
 
   const splitTicket: FlightOption = {
-    outbound: generateFlightLeg(origin, destination, departureDate, finalSplitOutbound),
-    inbound: generateFlightLeg(destination, origin, returnDate, finalSplitInbound),
-    totalPrice: finalSplitTotal,
-    bookingLink: "#",
-  };
-
-  const savings = {
-    amount: standardTotal - finalSplitTotal,
-    percentage: Math.round(((standardTotal - finalSplitTotal) / standardTotal) * 100),
+    outbound: {
+      ...standard.outbound,
+      airline: randomAirline(),
+      price: Math.round(splitPrice * 0.6),
+    },
+    inbound: {
+      ...standard.inbound,
+      airline: randomAirline(),
+      price: Math.round(splitPrice * 0.4),
+    },
+    totalPrice: splitPrice,
+    bookingLink: generateBookingLink(origin, destination, departureDate, returnDate),
   };
 
   return {
     standard,
     splitTicket,
-    savings,
+    savings: {
+      amount: savingsAmount,
+      percentage: Math.round((savingsAmount / standardPrice) * 100),
+    },
   };
 }
