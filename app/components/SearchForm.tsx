@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Users, ArrowRight, Loader2, Plane } from "lucide-react";
+import { Calendar, Users, ArrowRight, Loader2, Plane, Repeat } from "lucide-react";
 
 export interface SearchParams {
   origin: string;
@@ -16,56 +16,31 @@ interface SearchFormProps {
   loading: boolean;
 }
 
-// Simple airport input without autocomplete for now
-function AirportInput({ 
-  label, 
-  value, 
-  onChange, 
-  placeholder 
-}: { 
-  label: string; 
-  value: string; 
-  onChange: (val: string) => void; 
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-      <div className="relative">
-        <Plane className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value.toUpperCase())}
-          placeholder={placeholder || "LHR"}
-          className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
-          maxLength={3}
-        />
-      </div>
-      <p className="text-xs text-slate-500 mt-1">3-letter airport code</p>
-    </div>
-  );
-}
-
 export function SearchForm({ onSearch, loading }: SearchFormProps) {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [departureDate, setDepartureDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [passengers, setPassengers] = useState(1);
+  const [tripType, setTripType] = useState<"return" | "oneWay">("return");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!origin || !destination || !departureDate || !returnDate) {
+    if (!origin || !destination || !departureDate) {
       return;
     }
     onSearch({
       origin: origin.toUpperCase(),
       destination: destination.toUpperCase(),
       departureDate,
-      returnDate,
+      returnDate: tripType === "return" ? returnDate : departureDate,
       passengers,
     });
+  };
+
+  const swapLocations = () => {
+    setOrigin(destination);
+    setDestination(origin);
   };
 
   // Set default dates
@@ -74,64 +49,124 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
   const twoWeeks = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
-      <div className="grid md:grid-cols-2 gap-4">
-        <AirportInput
-          label="From"
-          value={origin}
-          onChange={setOrigin}
-          placeholder="LHR"
-        />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Trip Type Toggle */}
+      <div className="flex gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => setTripType("return")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tripType === "return"
+              ? "bg-sky-100 text-sky-700"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          Return
+        </button>
+        <button
+          type="button"
+          onClick={() => setTripType("oneWay")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tripType === "oneWay"
+              ? "bg-sky-100 text-sky-700"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          One way
+        </button>
+      </div>
 
-        <AirportInput
-          label="To"
-          value={destination}
-          onChange={setDestination}
-          placeholder="JFK"
-        />
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Departure</label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+      {/* Location Inputs */}
+      <div className="grid md:grid-cols-2 gap-3 relative">
+        {/* From */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-sky-300 transition-colors">
+          <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">From</label>
+          <div className="flex items-center gap-3">
+            <Plane className="w-5 h-5 text-slate-400" />
             <input
-              type="date"
-              value={departureDate}
-              onChange={(e) => setDepartureDate(e.target.value)}
-              min={nextWeek.toISOString().split("T")[0]}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-              required
+              type="text"
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+              placeholder="London (LHR)"
+              className="bg-transparent text-lg font-semibold text-slate-900 placeholder:text-slate-400 w-full focus:outline-none uppercase"
+              maxLength={3}
             />
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Return</label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        {/* Swap Button */}
+        <button
+          type="button"
+          onClick={swapLocations}
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white border border-slate-200 rounded-full shadow-md flex items-center justify-center hover:bg-slate-50 transition-colors"
+        >
+          <Repeat className="w-4 h-4 text-slate-600" />
+        </button>
+
+        {/* To */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-sky-300 transition-colors">
+          <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">To</label>
+          <div className="flex items-center gap-3">
+            <Plane className="w-5 h-5 text-slate-400 rotate-90" />
             <input
-              type="date"
-              value={returnDate}
-              onChange={(e) => setReturnDate(e.target.value)}
-              min={departureDate || twoWeeks.toISOString().split("T")[0]}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-              required
+              type="text"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value.toUpperCase())}
+              placeholder="New York (JFK)"
+              className="bg-transparent text-lg font-semibold text-slate-900 placeholder:text-slate-400 w-full focus:outline-none uppercase"
+              maxLength={3}
             />
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 mt-4 pt-4 border-t border-slate-100">
-        <div className="flex items-center gap-3">
+      {/* Date Inputs */}
+      <div className="grid md:grid-cols-2 gap-3">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-sky-300 transition-colors">
+          <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Depart</label>
+          <div className="flex items-center gap-3">
+            <Calendar className="w-5 h-5 text-slate-400" />
+            <input
+              type="date"
+              value={departureDate}
+              onChange={(e) => setDepartureDate(e.target.value)}
+              min={nextWeek.toISOString().split("T")[0]}
+              className="bg-transparent text-lg font-semibold text-slate-900 w-full focus:outline-none"
+              required
+            />
+          </div>
+        </div>
+
+        {tripType === "return" && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-sky-300 transition-colors">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Return</label>
+            <div className="flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-slate-400" />
+              <input
+                type="date"
+                value={returnDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+                min={departureDate || twoWeeks.toISOString().split("T")[0]}
+                className="bg-transparent text-lg font-semibold text-slate-900 w-full focus:outline-none"
+                required={tripType === "return"}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Passengers & Search */}
+      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-3">
           <Users className="w-5 h-5 text-slate-400" />
           <select
             value={passengers}
             onChange={(e) => setPassengers(Number(e.target.value))}
-            className="border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            className="bg-transparent font-semibold text-slate-900 focus:outline-none cursor-pointer"
           >
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <option key={n} value={n}>
-                {n} passenger{n > 1 ? "s" : ""}
+                {n} traveller{n > 1 ? "s" : ""}
               </option>
             ))}
           </select>
@@ -139,8 +174,8 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
 
         <button
           type="submit"
-          disabled={loading || !origin || !destination || !departureDate || !returnDate}
-          className="flex-1 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
+          disabled={loading || !origin || !destination || !departureDate || (tripType === "return" && !returnDate)}
+          className="flex-1 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 text-white font-bold py-4 px-8 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-sky-500/30"
         >
           {loading ? (
             <>
@@ -149,7 +184,7 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
             </>
           ) : (
             <>
-              Search Flights
+              Search flights
               <ArrowRight className="w-5 h-5" />
             </>
           )}
