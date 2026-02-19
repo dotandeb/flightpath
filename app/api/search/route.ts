@@ -32,25 +32,50 @@ export async function POST(request: NextRequest) {
       passengers: passengers || 1,
     });
 
-    console.log("Search completed, results:", {
+    // Ensure we have valid data
+    if (!results || !results.standard) {
+      throw new Error("Invalid search results");
+    }
+
+    console.log("Search completed:", {
       standardPrice: results.standard?.totalPrice,
       alternativesCount: results.alternatives?.length,
-      bestPrice: results.bestOption?.totalPrice,
     });
 
     return NextResponse.json(results);
   } catch (error: any) {
     console.error("Search error:", error);
     
-    // Return a valid response structure even on error
-    return NextResponse.json(
-      { 
-        error: error.message || "Failed to search flights",
-        standard: null,
-        alternatives: [],
-        bestOption: null,
+    // Return a valid fallback response
+    return NextResponse.json({
+      error: error.message || "Failed to search flights",
+      standard: {
+        outbound: {
+          origin: "???",
+          destination: "???",
+          departureTime: new Date().toISOString(),
+          arrivalTime: new Date().toISOString(),
+          airline: "Error",
+          flightNumber: "",
+          price: 0,
+        },
+        inbound: {
+          origin: "???",
+          destination: "???",
+          departureTime: new Date().toISOString(),
+          arrivalTime: new Date().toISOString(),
+          airline: "Error",
+          flightNumber: "",
+          price: 0,
+        },
+        totalPrice: 0,
+        bookingLink: "#",
+        strategy: "Error",
+        savingsVsStandard: 0,
       },
-      { status: 500 }
-    );
+      alternatives: [],
+      bestOption: null,
+      allStrategies: ["Error"],
+    }, { status: 200 }); // Return 200 so client can show error message
   }
 }

@@ -176,15 +176,32 @@ export default function Home() {
 }
 
 // Simplified results display
-function ResultsDisplay({ result }: { result: FlightResult }) {
-  const standard = result?.standard;
-  const bestOption = result?.bestOption || standard;
-  const alternatives = result?.alternatives || [];
-  
-  if (!standard) {
+function ResultsDisplay({ result }: { result: any }) {
+  if (!result) {
     return (
       <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
         No results available.
+      </div>
+    );
+  }
+
+  // Handle error response
+  if (result.error || !result.standard) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        {result.error || "Unable to search flights. Please try again."}
+      </div>
+    );
+  }
+
+  const standard = result.standard;
+  const bestOption = result.bestOption || standard;
+  const alternatives = result.alternatives || [];
+  
+  if (!standard.outbound || !standard.inbound) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        Invalid flight data received. Please try again.
       </div>
     );
   }
@@ -227,7 +244,7 @@ function ResultsDisplay({ result }: { result: FlightResult }) {
       {alternatives.length > 0 && (
         <div className="space-y-3">
           <h3 className="font-semibold">Other Options</h3>
-          {alternatives.slice(0, 3).map((alt, i) => (
+          {alternatives.slice(0, 3).map((alt: any, i: number) => (
             <div key={i} className="bg-white border border-slate-200 rounded-lg p-4">
               <div className="flex justify-between">
                 <span>{alt.strategy}</span>
