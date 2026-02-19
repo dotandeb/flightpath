@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "FlightPath - Find Cheaper Flights",
   description: "Smart split-ticket flight search. Save hundreds by booking separate one-way tickets.",
+  metadataBase: new URL("https://flightpath.solutions"),
 };
 
 export default function RootLayout({

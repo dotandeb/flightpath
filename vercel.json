@@ -14,6 +14,6 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_APP_URL": "https://flightpath.io"
+    "NEXT_PUBLIC_APP_URL": "https://flightpath.solutions"
   }
 }
