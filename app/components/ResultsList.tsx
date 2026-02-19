@@ -1,17 +1,40 @@
 "use client";
 
 import { FlightResult } from "../lib/flight-api";
-import { Plane, ArrowRight, ExternalLink, Check, AlertTriangle, MapPin, Calendar } from "lucide-react";
+import { Plane, ArrowRight, ExternalLink, Check, AlertTriangle } from "lucide-react";
 
 interface ResultsListProps {
   result: FlightResult;
 }
 
 export function ResultsList({ result }: ResultsListProps) {
-  const { standard, alternatives, bestOption } = result;
-  const hasSavings = bestOption.totalPrice < standard.totalPrice;
-  const savingsAmount = standard.totalPrice - bestOption.totalPrice;
-  const savingsPercentage = Math.round((savingsAmount / standard.totalPrice) * 100);
+  // Handle missing data gracefully
+  if (!result) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        No results available.
+      </div>
+    );
+  }
+
+  const { standard, alternatives = [], bestOption } = result;
+  
+  // Fallback if bestOption is missing
+  const effectiveBestOption = bestOption || standard;
+  
+  if (!standard) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        No flight data available. Please try again.
+      </div>
+    );
+  }
+
+  const hasSavings = effectiveBestOption.totalPrice < standard.totalPrice;
+  const savingsAmount = standard.totalPrice - effectiveBestOption.totalPrice;
+  const savingsPercentage = standard.totalPrice > 0 
+    ? Math.round((savingsAmount / standard.totalPrice) * 100) 
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -30,38 +53,42 @@ export function ResultsList({ result }: ResultsListProps) {
               </p>
             </div>
           </div>          <p className="text-sm text-green-100 mt-2">
-            Strategy: <span className="font-semibold">{bestOption.strategy}</span>
+            Strategy: <span className="font-semibold">{effectiveBestOption.strategy}</span>
           </p>
         </div>
       )}
 
       {/* Best Option Card */}
-      <div className="bg-white border-2 border-green-500 rounded-xl p-6 shadow-lg">
+      <div className={`bg-white border-2 ${hasSavings ? 'border-green-500' : 'border-slate-300'} rounded-xl p-6 shadow-lg`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-green-700">{bestOption.strategy}</span>
+            <span className={`text-sm font-medium ${hasSavings ? 'text-green-700' : 'text-slate-700'}`}>
+              {effectiveBestOption.strategy}
+            </span>
             {hasSavings && (
               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                 Best Price
               </span>
             )}
           </div>
-          <span className="text-3xl font-bold text-green-600">£{bestOption.totalPrice}</span>
+          <span className={`text-3xl font-bold ${hasSavings ? 'text-green-600' : 'text-slate-700'}`}>
+            £{effectiveBestOption.totalPrice}
+          </span>
         </div>
 
         <div className="space-y-3">
-          <FlightLegCard leg={bestOption.outbound} type="outbound" />
-          <FlightLegCard leg={bestOption.inbound} type="inbound" />
+          <FlightLegCard leg={effectiveBestOption.outbound} type="outbound" />
+          <FlightLegCard leg={effectiveBestOption.inbound} type="inbound" />
         </div>
 
-        {bestOption.risks && bestOption.risks.length > 0 && (
+        {effectiveBestOption.risks && effectiveBestOption.risks.length > 0 && (
           <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-amber-800">
                 <p className="font-medium">Things to consider:</p>
                 <ul className="mt-1 space-y-1">
-                  {bestOption.risks.map((risk, i) => (
+                  {effectiveBestOption.risks.map((risk, i) => (
                     <li key={i}>• {risk}</li>
                   ))}
                 </ul>
@@ -71,7 +98,7 @@ export function ResultsList({ result }: ResultsListProps) {
         )}
 
         <a
-          href={bestOption.bookingLink}
+          href={effectiveBestOption.bookingLink || '#'}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-4 flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
@@ -106,9 +133,9 @@ export function ResultsList({ result }: ResultsListProps) {
               <div className="text-sm text-slate-600 space-y-1">
                 <div className="flex items-center gap-2">
                   <Plane className="w-4 h-4" />
-                  {option.outbound.airline} {option.outbound.flightNumber}
+                  {option.outbound?.airline} {option.outbound?.flightNumber}
                   <ArrowRight className="w-3 h-3" />
-                  {option.inbound.airline} {option.inbound.flightNumber}
+                  {option.inbound?.airline} {option.inbound?.flightNumber}
                 </div>
                 
                 {option.risks && option.risks.length > 0 && (
@@ -120,7 +147,7 @@ export function ResultsList({ result }: ResultsListProps) {
               </div>
 
               <a
-                href={option.bookingLink}
+                href={option.bookingLink || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700"
@@ -140,7 +167,7 @@ export function ResultsList({ result }: ResultsListProps) {
           <span className="text-xl font-bold text-slate-600">£{standard.totalPrice}</span>
         </div>
         <div className="text-sm text-slate-500">
-          {standard.outbound.airline} / {standard.inbound.airline}
+          {standard.outbound?.airline} / {standard.inbound?.airline}
         </div>
       </div>
     </div>
@@ -148,8 +175,10 @@ export function ResultsList({ result }: ResultsListProps) {
 }
 
 function FlightLegCard({ leg, type }: { leg: any; type: "outbound" | "inbound" }) {
-  const departure = new Date(leg.departureTime);
-  const arrival = new Date(leg.arrivalTime);
+  if (!leg) return null;
+  
+  const departure = leg.departureTime ? new Date(leg.departureTime) : null;
+  const arrival = leg.arrivalTime ? new Date(leg.arrivalTime) : null;
   
   return (
     <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-100">
@@ -161,12 +190,17 @@ function FlightLegCard({ leg, type }: { leg: any; type: "outbound" | "inbound" }
           <span className="font-semibold text-slate-900">{leg.destination}</span>
         </div>        <div className="text-sm text-slate-600 mt-1">
           <span className="font-medium">{leg.airline} {leg.flightNumber}</span>
-          <span className="mx-2">•</span>
-          {departure.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-          <span className="mx-2">•</span>
-          {departure.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-          {" - "}
-          {arrival.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+          {departure && (
+            <>
+              <span className="mx-2">•</span>
+              {departure.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+              <span className="mx-2">•</span>
+              {departure.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+              {arrival && (
+                <>{" - "}{arrival.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</>
+              )}
+            </>
+          )}
         </div>
       </div>      <span className="font-semibold text-green-700">£{leg.price}</span>
     </div>

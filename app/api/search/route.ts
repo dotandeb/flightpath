@@ -15,12 +15,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate airport codes (3 letters)
-    if (!/^[A-Z]{3}$/.test(origin) || !/^[A-Z]{3}$/.test(destination)) {
+    if (!/^[A-Za-z]{3}$/.test(origin) || !/^[A-Za-z]{3}$/.test(destination)) {
       return NextResponse.json(
-        { error: "Invalid airport code format" },
+        { error: "Invalid airport code format. Use 3-letter codes like LHR, JFK." },
         { status: 400 }
       );
     }
+
+    console.log("Searching flights:", { origin, destination, departureDate, returnDate });
 
     const results = await searchFlights({
       origin: origin.toUpperCase(),
@@ -30,11 +32,24 @@ export async function POST(request: NextRequest) {
       passengers: passengers || 1,
     });
 
+    console.log("Search completed, results:", {
+      standardPrice: results.standard?.totalPrice,
+      alternativesCount: results.alternatives?.length,
+      bestPrice: results.bestOption?.totalPrice,
+    });
+
     return NextResponse.json(results);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Search error:", error);
+    
+    // Return a valid response structure even on error
     return NextResponse.json(
-      { error: "Failed to search flights" },
+      { 
+        error: error.message || "Failed to search flights",
+        standard: null,
+        alternatives: [],
+        bestOption: null,
+      },
       { status: 500 }
     );
   }
