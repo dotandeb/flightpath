@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plane, Calendar, Users, ArrowRight, Loader2 } from "lucide-react";
+import { AirportAutocomplete } from "./AirportAutocomplete";
+import { Calendar, Users, ArrowRight, Loader2 } from "lucide-react";
 
 export interface SearchParams {
   origin: string;
@@ -25,6 +26,9 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!origin || !destination || !departureDate || !returnDate) {
+      return;
+    }
     onSearch({
       origin: origin.toUpperCase(),
       destination: destination.toUpperCase(),
@@ -43,40 +47,20 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
       <div className="grid md:grid-cols-2 gap-4">
         {/* Origin */}
-        <div className="relative">
-          <label className="block text-sm font-medium text-slate-700 mb-1">From</label>
-          <div className="relative">
-            <Plane className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="LHR"
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
-              maxLength={3}
-              required
-            />
-          </div>
-          <p className="text-xs text-slate-500 mt-1">Airport code (e.g., LHR, JFK, CDG)</p>
-        </div>
+        <AirportAutocomplete
+          label="From"
+          value={origin}
+          onChange={setOrigin}
+          placeholder="Search city or airport..."
+        />
 
         {/* Destination */}
-        <div className="relative">
-          <label className="block text-sm font-medium text-slate-700 mb-1">To</label>
-          <div className="relative">
-            <Plane className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 rotate-90" />
-            <input
-              type="text"
-              placeholder="JFK"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 uppercase"
-              maxLength={3}
-              required
-            />
-          </div>
-          <p className="text-xs text-slate-500 mt-1">Airport code (e.g., JFK, CDG, DXB)</p>
-        </div>
+        <AirportAutocomplete
+          label="To"
+          value={destination}
+          onChange={setDestination}
+          placeholder="Search city or airport..."
+        />
 
         {/* Departure Date */}
         <div>
@@ -130,13 +114,13 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !origin || !destination || !departureDate || !returnDate}
           className="flex-1 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
         >
           {loading ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              Searching...
+              Searching 6 strategies...
             </>
           ) : (
             <>
