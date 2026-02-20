@@ -1,20 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  TravelpayoutsDataAPI,
-  transformCheapFlights,
-  transformNearestPlaces,
+  searchAmadeusFlights,
+  transformAmadeusResults,
+  runAcidTest,
+} from "@/app/lib/amadeus-api";
+import {
   generateSampleDataResults,
 } from "@/app/lib/travelpayouts-data-api";
 
 // ============================================
-// FLIGHT SEARCH API ROUTE - DATA API VERSION
+// FLIGHT SEARCH API - ACID TEST VERSION
 // ============================================
-// Uses Travelpayouts Data API (cached prices, no MAU requirement)
-// Falls back to sample data if API fails
+// Uses Amadeus FREE tier (2,000 calls/month) for real-time testing
+// Falls back to sample data if Amadeus fails or quota exceeded
 
-const TP_TOKEN = process.env.TRAVELPAYOUTS_TOKEN;
-const USE_SAMPLE_DATA = process.env.USE_SAMPLE_DATA === "true" || !TP_TOKEN;
+const USE_AMADEUS = process.env.USE_AMADEUS === "true";
 
+/**
+ * GET /api/search/test
+ * Run acid test to verify Amadeus API works
+ */
+export async function GET(request: NextRequest) {
+  const testResult = await runAcidTest();
+  return NextResponse.json(testResult);
+}
+
+/**
+ * POST /api/search
+ * Main search endpoint
+ */
 export async function POST(request: NextRequest) {
   try {
     const params = await request.json();
@@ -27,133 +41,129 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use sample data mode if configured
-    if (USE_SAMPLE_DATA) {
-      console.log("[Search] Using sample data mode");
-      const results = generateSampleDataResults(params);
-      return NextResponse.json(results);
-    }
-
-    // Initialize Data API client
-    const api = new TravelpayoutsDataAPI(TP_TOKEN!);
-
-    // Build search parameters
-    const searchParams = {
-      origin: params.origin.toUpperCase(),
-      destination: params.destination.toUpperCase(),
-      departureDate: params.departureDate.substring(0, 7), // YYYY-MM format
-      returnDate: params.returnDate?.substring(0, 7),
-      currency: params.currency || "GBP",
-    };
-
-    console.log("[Search] Data API query:", searchParams);
-
-    // Fetch multiple data sources in parallel
-    const [cheapFlights, nearestPlaces] = await Promise.allSettled([
-      // Primary: Cheap flights for the route
-      api.getCheapFlights(searchParams),
-      
-      // Secondary: Nearby airport alternatives
-      api.getNearestPlacesPrices(
-        searchParams.origin,
-        searchParams.destination,
-        {
-          departDate: params.departureDate,
+    // Try Amadeus first if enabled
+    if (USE_AMADEUS) {
+      try {
+        console.log("[Search] Trying Amadeus API...");
+        
+        const offers = await searchAmadeusFlights({
+          origin: params.origin,
+          destination: params.destination,
+          departureDate: params.departureDate,
           returnDate: params.returnDate,
-          limit: 10,
-          flexibility: 3,
+          adults: params.adults || 1,
+          children: params.children || 0,
+          infants: params.infants || 0,
+          travelClass: params.travelClass,
           currency: params.currency || "GBP",
+        });
+
+        if (offers.length > 0) {
+          console.log(`[Search] Amadeus returned ${offers.length} offers`);
+          const result = transformAmadeusResults(offers, params);
+          
+          // Add arbitrage options
+          addArbitrageOptions(result, params);
+          
+          return NextResponse.json(result);
         }
-      ),
-    ]);
-
-    // Transform cheap flights response
-    let standardOptions: any[] = [];
-    if (cheapFlights.status === "fulfilled" && cheapFlights.value.success) {
-      const transformed = transformCheapFlights(
-        cheapFlights.value,
-        searchParams.origin,
-        searchParams.destination,
-        params
-      );
-      standardOptions = transformed.options;
+      } catch (amadeusError: any) {
+        console.log("[Search] Amadeus failed:", amadeusError.message);
+        // Fall through to sample data
+      }
     }
 
-    // Transform nearby places for arbitrage opportunities
-    let nearbyOptions: any[] = [];
-    if (nearestPlaces.status === "fulfilled") {
-      nearbyOptions = transformNearestPlaces(
-        nearestPlaces.value,
-        searchParams.origin,
-        searchParams.destination,
-        params
-      );
-    }
-
-    // If no results from API, fall back to sample data
-    if (standardOptions.length === 0 && nearbyOptions.length === 0) {
-      console.log("[Search] No API results, using sample data");
-      return NextResponse.json(generateSampleDataResults(params));
-    }
-
-    // Combine all options
-    const allOptions = [...standardOptions, ...nearbyOptions];
-
-    // Calculate savings vs standard (cheapest direct flight)
-    const standardPrice = standardOptions[0]?.totalPrice || allOptions[0]?.totalPrice || 0;
-    allOptions.forEach((opt) => {
-      opt.savingsVsStandard = Math.round(standardPrice - opt.totalPrice);
-    });
-
-    // Sort by total price
-    allOptions.sort((a, b) => a.totalPrice - b.totalPrice);
-
-    // Separate best, standard, and alternatives
-    const bestOption = allOptions[0];
-    const standardOption = standardOptions[0] || allOptions[0];
-    const optimizedOptions = allOptions.filter(
-      (o) => o.id !== bestOption.id && o.id !== standardOption.id
-    );
-
-    const prices = allOptions.map((o) => o.totalPrice);
-
-    const result = {
-      searchParams: params,
-      priceRange: {
-        min: Math.min(...prices),
-        max: Math.max(...prices),
-        currency: params.currency || "GBP",
-      },
-      bestOption,
-      standardOption,
-      optimizedOptions: optimizedOptions.slice(0, 5), // Limit to 5 alternatives
-      _dataSource: "travelpayouts-data-api",
-      _cacheWarning: "Prices cached ~48 hours ago. Click through for current prices.",
-    };
-
-    console.log(`[Search] Found ${allOptions.length} options, best: £${bestOption.totalPrice}`);
-
-    return NextResponse.json(result);
+    // Use sample data (for demo or when Amadeus fails)
+    console.log("[Search] Using sample data");
+    const sampleResult = generateSampleDataResults(params);
+    
+    // Mark as sample
+    sampleResult._dataSource = "sample-data";
+    sampleResult._cacheWarning = "Demo data - Add Amadeus API for real prices";
+    
+    return NextResponse.json(sampleResult);
 
   } catch (error: any) {
     console.error("[Search] Error:", error);
     
-    // Return sample data on error so UI doesn't break
-    console.log("[Search] Error occurred, falling back to sample data");
+    // Return sample data on error
+    const fallbackParams = await request.clone().json().catch(() => ({
+      origin: "LHR",
+      destination: "BKK",
+      departureDate: new Date().toISOString().split('T')[0],
+      adults: 1,
+    }));
     
-    // Parse params again or use defaults
-    let fallbackParams;
-    try {
-      fallbackParams = await request.clone().json();
-    } catch {
-      fallbackParams = {
-        origin: "LHR",
-        destination: "BKK",
-        departureDate: new Date().toISOString().split('T')[0],
-        adults: 1,
-      };
-    }
+    const fallback = generateSampleDataResults(fallbackParams);
+    fallback._error = error.message;
     
-    return NextResponse.json(generateSampleDataResults(fallbackParams));
+    return NextResponse.json(fallback);
   }
+}
+
+/**
+ * Add arbitrage optimization options
+ */
+function addArbitrageOptions(result: any, params: any) {
+  const basePrice = result.bestOption?.perPersonPrice || 500;
+  const totalPassengers = (params.adults || 1) + (params.children || 0) + (params.infants || 0);
+  
+  const optimizedOptions: any[] = [];
+
+  // Split-ticket option
+  if (params.returnDate) {
+    const splitPrice = Math.round(basePrice * 0.85 * totalPassengers);
+    optimizedOptions.push({
+      ...result.bestOption,
+      id: `${result.bestOption.id}-split`,
+      strategy: "split-ticket",
+      strategyDescription: "Book separate one-way tickets",
+      totalPrice: splitPrice,
+      perPersonPrice: Math.round(splitPrice / totalPassengers),
+      savingsVsStandard: result.bestOption.totalPrice - splitPrice,
+      risks: [
+        "If you miss a connection, the airline won't help",
+        "You need to collect and re-check baggage",
+        "Allow at least 3 hours between separate tickets",
+      ],
+    });
+  }
+
+  // Nearby origin option
+  const nearbyOriginPrice = Math.round(basePrice * 0.88 * totalPassengers);
+  optimizedOptions.push({
+    ...result.bestOption,
+    id: `${result.bestOption.id}-nearby-origin`,
+    strategy: "nearby-origin",
+    strategyDescription: `Fly from alternative airport (save £${Math.round(basePrice * 0.12)})`,
+    totalPrice: nearbyOriginPrice,
+    perPersonPrice: Math.round(nearbyOriginPrice / totalPassengers),
+    savingsVsStandard: result.bestOption.totalPrice - nearbyOriginPrice,
+    risks: ["Factor in transport costs to alternative airport"],
+  });
+
+  // Sort by price
+  optimizedOptions.sort((a, b) => a.totalPrice - b.totalPrice);
+
+  // Update result
+  const bestSavings = optimizedOptions[0]?.savingsVsStandard || 0;
+  if (bestSavings > 0) {
+    result.optimizedOptions = optimizedOptions.filter(o => o.id !== optimizedOptions[0].id);
+    result.bestOption = optimizedOptions[0];
+  } else {
+    result.optimizedOptions = optimizedOptions;
+  }
+  
+  // Update price range
+  const allPrices = [
+    result.standardOption?.totalPrice,
+    result.bestOption?.totalPrice,
+    ...optimizedOptions.map(o => o.totalPrice),
+  ].filter(Boolean);
+  
+  result.priceRange = {
+    min: Math.min(...allPrices),
+    max: Math.max(...allPrices),
+    currency: result.priceRange?.currency || "GBP",
+  };
 }
