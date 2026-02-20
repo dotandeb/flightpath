@@ -124,6 +124,23 @@ function ResultsDisplay({ result }: { result: any }) {
   
   return (
     <div className="space-y-6">
+      {/* Cache Warning */}
+      {result._cacheWarning && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+          <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-sm text-amber-800 font-medium">{result._cacheWarning}</p>
+            {result._dataSource === "sample-data" && (
+              <p className="text-xs text-amber-700 mt-1">
+                Demo mode: Add TRAVELPAYOUTS_TOKEN to .env.local for real data
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Summary */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -168,14 +185,14 @@ function ResultsDisplay({ result }: { result: any }) {
       )}
 
       {/* Best Option Card */}
-      <FlightOptionCard option={bestOption} isBest={true} totalPassengers={totalPassengers} />
+      <FlightOptionCard option={bestOption} isBest={true} totalPassengers={totalPassengers} rawData={result._raw} />
 
       {/* Other Options */}
       {optimizedOptions.length > 0 && (
         <>
           <h3 className="font-semibold text-slate-900 mt-8 mb-4">Other ways to save</h3>
           {optimizedOptions.map((opt: any, i: number) => (
-            <FlightOptionCard key={i} option={opt} isBest={false} totalPassengers={totalPassengers} />
+            <FlightOptionCard key={i} option={opt} isBest={false} totalPassengers={totalPassengers} rawData={result._raw} />
           ))}
         </>
       )}
@@ -184,18 +201,47 @@ function ResultsDisplay({ result }: { result: any }) {
       {standardOption && bestOption?.id !== standardOption?.id && (
         <>
           <h3 className="font-semibold text-slate-900 mt-8 mb-4">Standard option</h3>
-          <FlightOptionCard option={standardOption} isBest={false} totalPassengers={totalPassengers} />
+          <FlightOptionCard option={standardOption} isBest={false} totalPassengers={totalPassengers} rawData={result._raw} />
         </>
       )}
     </div>
   );
 }
 
-function FlightOptionCard({ option, isBest, totalPassengers }: { option: any; isBest: boolean; totalPassengers: number }) {
+function FlightOptionCard({ option, isBest, totalPassengers, rawData }: { option: any; isBest: boolean; totalPassengers: number; rawData?: any }) {
   if (!option) return null;
 
   const formatTime = (iso: string) => iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--';
   const formatDate = (iso: string) => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+
+  const handleBookClick = async (link: any) => {
+    // If it's a real API result with proposalId, generate booking link
+    if (link.proposalId && rawData?.results_url && rawData?.search_id) {
+      try {
+        const response = await fetch('/api/booking-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resultsUrl: rawData.results_url,
+            searchId: rawData.search_id,
+            proposalId: link.proposalId,
+          }),
+        });
+        
+        const data = await response.json();
+        if (data.url) {
+          window.open(data.url, '_blank');
+        }
+      } catch (err) {
+        console.error('Failed to get booking link:', err);
+        // Fallback to direct URL
+        if (link.url) window.open(link.url, '_blank');
+      }
+    } else if (link.url && link.url !== '#') {
+      // Direct URL for sample data
+      window.open(link.url, '_blank');
+    }
+  };
 
   return (
     <div className={`bg-white rounded-xl shadow-lg overflow-hidden mb-4 ${isBest ? 'border-2 border-green-500' : 'border border-slate-200'}`}>
@@ -270,12 +316,10 @@ function FlightOptionCard({ option, isBest, totalPassengers }: { option: any; is
           <p className="text-xs font-medium text-slate-500 uppercase">Book with</p>
           <div className="grid grid-cols-2 gap-2">
             {option.bookingLinks?.slice(0, 4).map((link: any, i: number) => (
-              <a
+              <button
                 key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                onClick={() => handleBookClick(link)}
+                className={`flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${
                   i === 0 && isBest
                     ? 'bg-sky-500 text-white border-sky-500 hover:bg-sky-600' 
                     : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -286,7 +330,7 @@ function FlightOptionCard({ option, isBest, totalPassengers }: { option: any; is
                   <span className="font-bold">£{link.price}</span>
                   <ExternalLink className="w-4 h-4" />
                 </div>
-              </a>
+              </button>
             ))}
           </div>        </div>
       </div>
