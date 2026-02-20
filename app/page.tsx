@@ -61,8 +61,8 @@ export default function Home() {
           <nav className="hidden md:flex items-center gap-6">
             <a href="#" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
             <a href="#" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</a>
-            <button className="text-sm bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-colors">
-              Sign in
+            <button className="text-sm bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors font-medium">
+              Sign Up - 5 Free Searches
             </button>
           </nav>
         </div>
@@ -106,12 +106,12 @@ export default function Home() {
             
             <div className="space-y-3">
               <button className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:from-sky-600 hover:to-blue-700 transition-colors">
-                <CreditCard className="w-5 h-5" />
-                Unlock for £4.99
+                <Sparkles className="w-5 h-5" />
+                Sign Up Free - 5 Searches
               </button>
               
               <p className="text-center text-sm text-slate-500">
-                One-time payment • Instant access • No subscription
+                ✓ 5 free flight searches • No credit card required
               </p>
               
               <div className="relative">
@@ -124,8 +124,13 @@ export default function Home() {
               </div>
               
               <button className="w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200 transition-colors">
-                Sign up for free
+                <CreditCard className="w-4 h-4 inline mr-2" />
+                Unlock Unlimited - £4.99
               </button>
+              
+              <p className="text-center text-xs text-slate-400">
+                One-time payment • Unlimited searches forever
+              </p>
             </div>
           </div>
         </div>
@@ -552,8 +557,8 @@ function FlightOptionCard({
             </div>
           </div>          
           <p className="text-center text-sm text-slate-500 mt-4">
-            One-time unlock £4.99 or{' '}
-            <a href="#" className="text-sky-600 hover:underline">sign up free</a>
+            <span className="text-amber-600 font-medium">5 free searches</span> when you sign up • 
+            <a href="#" className="text-sky-600 hover:underline">Learn more</a>
           </p>
         </div>
       </div>
