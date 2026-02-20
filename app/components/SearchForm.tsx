@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { searchLocations, Location } from "../lib/flight-engine";
-import { Calendar, Users, ArrowRight, Loader2, Plane, Repeat, MapPin, X } from "lucide-react";
+import { useState } from "react";
+import { Calendar, Users, ArrowRight, Loader2, Plane, Repeat, MapPin } from "lucide-react";
 
 export interface SearchParams {
   origin: string;
@@ -27,7 +26,7 @@ const TRAVEL_CLASSES = [
   { value: "FIRST", label: "First Class" },
 ];
 
-// Location Autocomplete Component
+// Simple location input - no autocomplete for now
 function LocationInput({
   label,
   value,
@@ -39,107 +38,20 @@ function LocationInput({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Location[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (value && !selectedLocation) {
-      const loc = searchLocations(value)[0];
-      if (loc) {
-        setSelectedLocation(loc);
-        setQuery(`${loc.city} (${loc.code})`);
-      }
-    }
-  }, [value]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newQuery = e.target.value;
-    setQuery(newQuery);
-    setSelectedLocation(null);
-    onChange("");
-
-    if (newQuery.length >= 2) {
-      const results = searchLocations(newQuery);
-      setSuggestions(results);
-      setIsOpen(results.length > 0);
-    } else {
-      setSuggestions([]);
-      setIsOpen(false);
-    }
-  };
-
-  const handleSelect = (location: Location) => {
-    setSelectedLocation(location);
-    setQuery(`${location.city} (${location.code})`);
-    onChange(location.city); // Pass city name for resolution
-    setIsOpen(false);
-  };
-
-  const handleClear = () => {
-    setQuery("");
-    setSelectedLocation(null);
-    onChange("");
-  };
-
   return (
-    <div ref={containerRef} className="relative">
+    <div>
       <label className="block text-xs font-medium text-slate-500 uppercase mb-1">{label}</label>
       <div className="relative">
         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
         <input
           type="text"
-          value={query}
-          onChange={handleInputChange}
-          onFocus={() => query.length >= 2 && suggestions.length > 0 && setIsOpen(true)}
-          placeholder={placeholder || "City or airport"}
-          className="w-full pl-10 pr-10 py-3 bg-transparent text-lg font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none"
-          autoComplete="off"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || "London"}
+          className="w-full pl-10 pr-4 py-3 bg-transparent text-lg font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none"
         />
-        {query && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
       </div>
-
-      {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-          {suggestions.map((location) => (
-            <button
-              key={location.code}
-              type="button"
-              onClick={() => handleSelect(location)}
-              className="w-full px-4 py-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-slate-900">
-                    {location.city} <span className="text-sky-600">({location.code})</span>
-                  </p>
-                  <p className="text-sm text-slate-500">{location.name}, {location.country}</p>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+      <p className="text-xs text-slate-400 mt-1">City name or airport code (LHR, JFK)</p>
     </div>
   );
 }
