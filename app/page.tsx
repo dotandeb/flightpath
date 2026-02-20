@@ -124,22 +124,32 @@ function ResultsDisplay({ result }: { result: any }) {
   
   return (
     <div className="space-y-6">
-      {/* Cache Warning */}
-      {result._cacheWarning && (
+      {/* Data Source Indicator */}
+      {result._dataSource === "sample-data" ? (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
           <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <p className="text-sm text-amber-800 font-medium">{result._cacheWarning}</p>
-            {result._dataSource === "sample-data" && (
-              <p className="text-xs text-amber-700 mt-1">
-                Demo mode: Add TRAVELPAYOUTS_TOKEN to .env.local for real data
-              </p>
-            )}
+            <p className="text-sm text-amber-800 font-medium">Demo data - Add Amadeus API for real prices</p>
+            <p className="text-xs text-amber-700 mt-1">
+              Showing sample prices for demonstration
+            </p>
           </div>
         </div>
-      )}
+      ) : result._realTimeData ? (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2">
+          <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <div>
+            <p className="text-sm text-green-800 font-medium">✓ Real-time prices from Amadeus</p>
+            <p className="text-xs text-green-700 mt-1">
+              Live flight data from airlines
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {/* Summary */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
