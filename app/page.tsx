@@ -2,17 +2,20 @@
 
 import { useState } from "react";
 import { SearchForm, SearchParams } from "./components/SearchForm";
-import { Plane, Check, ArrowRight, Clock, AlertTriangle, ExternalLink, Sparkles, Shield, Zap, Globe } from "lucide-react";
+import { Plane, Check, ArrowRight, Clock, AlertTriangle, ExternalLink, Sparkles, Shield, Zap, Globe, Lock, CreditCard, X } from "lucide-react";
 
 export default function Home() {
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [selectedFlight, setSelectedFlight] = useState<any>(null);
 
   const handleSearch = async (params: SearchParams) => {
     setLoading(true);
     setError(null);
     setResults(null);
+    setShowPaywall(false);
     
     try {
       const response = await fetch("/api/search", {
@@ -35,6 +38,11 @@ export default function Home() {
     }
   };
 
+  const handleBookClick = (flight: any) => {
+    setSelectedFlight(flight);
+    setShowPaywall(true);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* Header */}
@@ -51,8 +59,8 @@ export default function Home() {
           </div>
           
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#how-it-works" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
-            <a href="#features" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</a>
+            <a href="#" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
+            <a href="#" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</a>
             <button className="text-sm bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-colors">
               Sign in
             </button>
@@ -60,9 +68,71 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Paywall Modal */}
+      {showPaywall && selectedFlight && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
+            <button 
+              onClick={() => setShowPaywall(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Lock className="w-8 h-8 text-amber-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Unlock Booking Links</h2>
+              <p className="text-slate-600">
+                Get instant access to book this flight with our partner airlines
+              </p>
+            </div>
+            
+            <div className="bg-slate-50 rounded-xl p-4 mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-slate-600">Flight</span>
+                <span className="font-semibold">{selectedFlight.airline} {selectedFlight.flightNumber}</span>
+              </div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-slate-600">Route</span>
+                <span className="font-semibold">{selectedFlight.origin} → {selectedFlight.destination}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                <span className="text-slate-600">Price</span>
+                <span className="text-2xl font-bold text-sky-600">{selectedFlight.currency} {selectedFlight.price}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <button className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:from-sky-600 hover:to-blue-700 transition-colors">
+                <CreditCard className="w-5 h-5" />
+                Unlock for £4.99
+              </button>
+              
+              <p className="text-center text-sm text-slate-500">
+                One-time payment • Instant access • No subscription
+              </p>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-slate-500">or</span>
+                </div>
+              </div>
+              
+              <button className="w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200 transition-colors">
+                Sign up for free
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        {/* Background decoration */}
         <div className="absolute inset-0 bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-20"></div>
         </div>
@@ -117,12 +187,12 @@ export default function Home() {
 
         {results && (
           <div className="max-w-4xl mx-auto">
-            <ResultsDisplay result={results} />
+            <ResultsDisplay result={results} onBookClick={handleBookClick} />
           </div>
         )}
 
         {!results && !loading && (
-          <div id="features" className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             <div className="text-center mb-10">
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Why use FlightPath?</h2>
               <p className="text-slate-600">Smart strategies to find cheaper flights</p>
@@ -198,7 +268,7 @@ function FeatureCard({ title, description, icon }: { title: string; description:
   );
 }
 
-function ResultsDisplay({ result }: { result: any }) {
+function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (flight: any) => void }) {
   if (!result || result.error) {
     return <div className="p-4 bg-red-50 rounded-lg text-red-700">{result?.error || "Error"}</div>;
   }
@@ -282,7 +352,7 @@ function ResultsDisplay({ result }: { result: any }) {
       )}
 
       {/* Best Option Card */}
-      <FlightOptionCard option={bestOption} isBest={true} totalPassengers={totalPassengers} />
+      <FlightOptionCard option={bestOption} isBest={true} totalPassengers={totalPassengers} onBookClick={onBookClick} />
 
       {/* Other Options */}
       {optimizedOptions.length > 0 && (
@@ -292,7 +362,7 @@ function ResultsDisplay({ result }: { result: any }) {
             Other ways to save
           </h3>
           {optimizedOptions.map((opt: any, i: number) => (
-            <FlightOptionCard key={i} option={opt} isBest={false} totalPassengers={totalPassengers} />
+            <FlightOptionCard key={i} option={opt} isBest={false} totalPassengers={totalPassengers} onBookClick={onBookClick} />
           ))}
         </>
       )}
@@ -301,23 +371,33 @@ function ResultsDisplay({ result }: { result: any }) {
       {standardOption && bestOption?.id !== standardOption?.id && (
         <>
           <h3 className="font-semibold text-slate-900 mt-8 mb-4">Standard option</h3>
-          <FlightOptionCard option={standardOption} isBest={false} totalPassengers={totalPassengers} />
+          <FlightOptionCard option={standardOption} isBest={false} totalPassengers={totalPassengers} onBookClick={onBookClick} />
         </>
       )}
     </div>
   );
 }
 
-function FlightOptionCard({ option, isBest, totalPassengers }: { option: any; isBest: boolean; totalPassengers: number }) {
+function FlightOptionCard({ 
+  option, 
+  isBest, 
+  totalPassengers, 
+  onBookClick 
+}: { 
+  option: any; 
+  isBest: boolean; 
+  totalPassengers: number;
+  onBookClick: (flight: any) => void;
+}) {
   if (!option) return null;
 
   const formatTime = (iso: string) => iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-  const formatDate = (iso: string) => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
-
-  const handleBookClick = (url: string) => {
-    if (url && url !== '#') {
-      window.open(url, '_blank');
-    }
+  const formatDate = (iso: string) => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const formatDuration = (minutes: number) => {
+    if (!minutes) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h}h ${m}m`;
   };
 
   return (
@@ -351,33 +431,62 @@ function FlightOptionCard({ option, isBest, totalPassengers }: { option: any; is
           </div>
         </div>
 
-        {/* Segments */}
+        {/* Detailed Segments */}
         {option.segments?.map((segment: any, idx: number) => (
           <div key={idx} className="bg-slate-50 rounded-xl p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{idx === 0 ? 'Outbound' : 'Return'}</span>
-              <span className="text-sm text-slate-400 font-medium">{segment.airline} {segment.flightNumber}</span>
+            {/* Segment Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-white bg-sky-500 px-2 py-1 rounded">
+                  {idx === 0 ? 'OUTBOUND' : 'RETURN'}
+                </span>
+                <span className="text-sm text-slate-500">
+                  {formatDate(segment.departureTime)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-slate-700">{segment.airlineName}</span>
+                <span className="text-sm text-slate-400">{segment.flightNumber}</span>
+              </div>
             </div>
             
-            <div className="flex items-center justify-between">
-              <div className="text-center">
+            {/* Flight Timeline */}
+            <div className="flex items-center gap-4">
+              {/* Departure */}
+              <div className="text-center min-w-[80px]">
                 <p className="text-2xl font-bold text-slate-900">{formatTime(segment.departureTime)}</p>
-                <p className="text-sm font-medium text-slate-600">{segment.origin?.code}</p>
-                <p className="text-xs text-slate-400">{formatDate(segment.departureTime)}</p>
+                <p className="text-lg font-semibold text-slate-700">{segment.origin?.code}</p>
               </div>
-              <div className="flex-1 px-6 flex flex-col items-center">
-                <div className="w-full h-0.5 bg-slate-300 relative">
-                  <Plane className="w-5 h-5 text-slate-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-50" />
+              
+              {/* Duration Line */}
+              <div className="flex-1 flex flex-col items-center">
+                <div className="w-full flex items-center gap-2">
+                  <div className="flex-1 h-0.5 bg-slate-300"></div>
+                  <Plane className="w-5 h-5 text-slate-400" />
+                  <div className="flex-1 h-0.5 bg-slate-300"></div>
                 </div>
-                <p className="text-xs text-slate-400 mt-2 font-medium">{segment.stops === 0 ? 'Direct' : `${segment.stops} stop${segment.stops > 1 ? 's' : ''}`}</p>
-                {segment.duration && <p className="text-xs text-slate-400">{segment.duration}</p>}
+                <p className="text-sm font-medium text-slate-500 mt-1">
+                  {segment.stops === 0 ? 'Direct' : `${segment.stops} stop${segment.stops > 1 ? 's' : ''}`}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {formatDuration(segment.durationMinutes)}
+                </p>
               </div>
-              <div className="text-center">
+              
+              {/* Arrival */}
+              <div className="text-center min-w-[80px]">
                 <p className="text-2xl font-bold text-slate-900">{formatTime(segment.arrivalTime)}</p>
-                <p className="text-sm font-medium text-slate-600">{segment.destination?.code}</p>
-                <p className="text-xs text-slate-400">{formatDate(segment.arrivalTime)}</p>
+                <p className="text-lg font-semibold text-slate-700">{segment.destination?.code}</p>
               </div>
             </div>
+            
+            {/* Aircraft Info */}
+            {segment.aircraft && (
+              <div className="mt-3 pt-3 border-t border-slate-200 flex items-center gap-4 text-sm text-slate-500">
+                <span>Aircraft: {segment.aircraft}</span>
+                <span>Class: {segment.cabinClass}</span>
+              </div>
+            )}
           </div>
         ))}
 
@@ -395,28 +504,58 @@ function FlightOptionCard({ option, isBest, totalPassengers }: { option: any; is
             </div>          </div>
         )}
 
-        {/* Booking Links */}
-        <div className="space-y-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Book with</p>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {option.bookingLinks?.slice(0, 3).map((link: any, i: number) => (
-              <button
-                key={i}
-                onClick={() => handleBookClick(link.url)}
-                className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
-                  i === 0 && isBest
-                    ? 'bg-sky-500 text-white border-sky-500 hover:bg-sky-600 shadow-lg shadow-sky-500/20' 
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-sky-300 hover:shadow-md'
-                }`}
-              >
-                <span className="font-semibold truncate">{link.airline}</span>
-                <div className="flex items-center gap-2">
+        {/* Booking Section with Paywall */}
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Book this flight</p>
+              <p className="text-xs text-slate-500">Compare prices across {option.bookingLinks?.length || 0} providers</p>
+            </div>            <div className="flex items-center gap-2 text-amber-600">
+              <Lock className="w-4 h-4" />
+              <span className="text-sm font-medium">Login to book</span>
+            </div>
+          </div>
+          
+          {/* Blurred Booking Options */}
+          <div className="relative">
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 blur-sm pointer-events-none">
+              {option.bookingLinks?.slice(0, 3).map((link: any, i: number) => (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between p-4 rounded-xl border-2 ${
+                    i === 0 && isBest
+                      ? 'bg-sky-500 text-white border-sky-500' 
+                      : 'bg-white text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <span className="font-semibold truncate">{link.airline}</span>
                   <span className="font-bold">{option.currency} {link.price}</span>
-                  <ExternalLink className="w-4 h-4" />
                 </div>
+              ))}
+            </div>            
+            {/* Unlock Overlay */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <button
+                onClick={() => onBookClick({
+                  airline: option.airlineName || option.airline,
+                  flightNumber: option.segments?.[0]?.flightNumber,
+                  origin: option.segments?.[0]?.origin?.code,
+                  destination: option.segments?.[0]?.destination?.code,
+                  price: option.totalPrice,
+                  currency: option.currency,
+                })}
+                className="bg-slate-900 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-slate-800 transition-colors shadow-lg"
+              >
+                <Lock className="w-4 h-4" />
+                Unlock to Book
               </button>
-            ))}
-          </div>        </div>
+            </div>
+          </div>          
+          <p className="text-center text-sm text-slate-500 mt-4">
+            One-time unlock £4.99 or{' '}
+            <a href="#" className="text-sky-600 hover:underline">sign up free</a>
+          </p>
+        </div>
       </div>
     </div>
   );
