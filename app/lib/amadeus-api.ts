@@ -2,6 +2,7 @@
 // Uses your existing credentials for real-time price testing
 
 import Amadeus from "amadeus";
+import { generateBookingLinks, getAirlineName } from "./booking-links";
 
 const amadeus = new Amadeus({
   clientId: process.env.AMADEUS_API_KEY || "",
@@ -155,6 +156,8 @@ export function transformAmadeusResults(
       }))
     );
 
+    const firstSegment = offer.itineraries[0]?.segments[0];
+    
     return {
       id: offer.id,
       strategy: "standard",
@@ -163,18 +166,17 @@ export function transformAmadeusResults(
       perPersonPrice: Math.round(perPersonPrice),
       currency: offer.price.currency,
       segments,
-      bookingLinks: [
-        {
-          airline: getAirlineName(offer.validatingAirlineCodes[0]),
-          price: Math.round(totalPrice),
-          url: generateAffiliateLink(params, offer),
-        },
-        {
-          airline: "Google Flights",
-          price: Math.round(totalPrice),
-          url: `https://www.google.com/travel/flights?q=Flights%20from%20${params.origin}%20to%20${params.destination}`,
-        },
-      ],
+      bookingLinks: generateBookingLinks({
+        origin: params.origin,
+        destination: params.destination,
+        departureDate: params.departureDate,
+        returnDate: params.returnDate,
+        adults: params.adults,
+        children: params.children || 0,
+        infants: params.infants || 0,
+        airline: firstSegment?.carrierCode,
+        price: Math.round(totalPrice),
+      }).map(l => ({ airline: l.provider, price: l.price, url: l.url })),
       savingsVsStandard: 0,
       risks: [],
       _source: "amadeus",
@@ -201,61 +203,6 @@ export function transformAmadeusResults(
     _realTimeData: true,
     _cacheWarning: "Real-time prices from Amadeus",
   };
-}
-
-/**
- * Generate affiliate booking link
- */
-function generateAffiliateLink(
-  params: AmadeusSearchParams,
-  offer: AmadeusFlightOffer
-): string {
-  const airline = offer.validatingAirlineCodes[0];
-  
-  // Map to airline booking sites
-  const airlineSites: Record<string, string> = {
-    BA: "https://www.britishairways.com",
-    AA: "https://www.aa.com",
-    DL: "https://www.delta.com",
-    UA: "https://www.united.com",
-    LH: "https://www.lufthansa.com",
-    AF: "https://www.airfrance.com",
-    KL: "https://www.klm.com",
-    EK: "https://www.emirates.com",
-    QR: "https://www.qatarairways.com",
-    SQ: "https://www.singaporeair.com",
-    CX: "https://www.cathaypacific.com",
-    VS: "https://www.virgin-atlantic.com",
-  };
-
-  const baseUrl = airlineSites[airline] || "https://www.skyscanner.net";
-  
-  return `${baseUrl}?utm_source=flightpath&utm_medium=referral`;
-}
-
-function getAirlineName(code: string): string {
-  const airlines: Record<string, string> = {
-    BA: "British Airways",
-    AA: "American Airlines",
-    DL: "Delta",
-    UA: "United",
-    LH: "Lufthansa",
-    AF: "Air France",
-    KL: "KLM",
-    EK: "Emirates",
-    QR: "Qatar Airways",
-    SQ: "Singapore Airlines",
-    CX: "Cathay Pacific",
-    JL: "JAL",
-    NH: "ANA",
-    VS: "Virgin Atlantic",
-    EY: "Etihad",
-    TK: "Turkish Airlines",
-    AC: "Air Canada",
-    QF: "Qantas",
-  };
-  
-  return airlines[code] || code;
 }
 
 function parseDuration(duration: string): number {
