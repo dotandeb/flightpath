@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SearchForm, SearchParams } from "./components/SearchForm";
-import { Plane, Check } from "lucide-react";
+import { Plane, Check, ArrowRight, Clock, AlertTriangle, ExternalLink } from "lucide-react";
 
 export default function Home() {
   const [results, setResults] = useState<any>(null);
@@ -43,14 +43,17 @@ export default function Home() {
             <Plane className="w-5 h-5 text-white" />
           </div>
           <span className="font-bold text-xl text-slate-900">FlightPath</span>
+          <span className="ml-2 text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded-full">Smart Search</span>
         </div>
       </header>
 
       <div className="bg-gradient-to-br from-sky-600 to-blue-800">
         <div className="max-w-6xl mx-auto px-4 py-12">
           <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">Find your next flight</h1>
-            <p className="text-sky-100 text-lg">Smart search that finds savings other sites miss</p>
+            <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">Find hidden flight deals</h1>
+            <p className="text-sky-100 text-lg max-w-2xl mx-auto">
+              Our AI searches multiple strategies: split tickets, nearby airports, and flexible dates to save you up to 40%
+            </p>
           </div>
 
           <div className="max-w-4xl mx-auto">
@@ -73,7 +76,37 @@ export default function Home() {
             <ResultsDisplay result={results} />
           </div>
         )}
+
+        {!results && !loading && (
+          <div className="max-w-4xl mx-auto grid md:grid-cols-3 gap-6">
+            <FeatureCard
+              title="Split Ticketing"
+              description="Book separate one-way tickets instead of returns. Often 20-40% cheaper."
+              icon="🎫"
+            />
+            <FeatureCard
+              title="Nearby Airports"
+              description="Check alternative airports within 150km. Hidden gems for less."
+              icon="🗺️"
+            />
+            <FeatureCard
+              title="Flexible Dates"
+              description="Flying a day earlier or later can save hundreds."
+              icon="📅"
+            />
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function FeatureCard({ title, description, icon }: { title: string; description: string; icon: string }) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div className="text-3xl mb-3">{icon}</div>
+      <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
+      <p className="text-slate-600 text-sm">{description}</p>
     </div>
   );
 }
@@ -83,19 +116,40 @@ function ResultsDisplay({ result }: { result: any }) {
     return <div className="p-4 bg-red-50 rounded-lg text-red-700">{result?.error || "Error"}</div>;
   }
 
-  const standard = result.standard;
-  const bestOption = result.bestOption || standard;
-  const alternatives = result.alternatives || [];
+  const bestOption = result.bestOption;
+  const optimizedOptions = result.optimizedOptions || [];
+  const standardOption = result.standardOption;
+  
   const totalPassengers = (result.searchParams?.adults || 1) + (result.searchParams?.children || 0) + (result.searchParams?.infants || 0);
   
-  if (!standard) return <div className="p-4 bg-red-50 rounded-lg text-red-700">No flights found</div>;
-
-  const hasSavings = bestOption?.totalPrice < standard?.totalPrice;
-  const savingsAmount = (standard?.totalPrice || 0) - (bestOption?.totalPrice || 0);
-
   return (
-    <div className="space-y-4">
-      {hasSavings && (
+    <div className="space-y-6">
+      {/* Summary */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-slate-500">Route</p>
+            <p className="font-semibold text-slate-900">
+              {result.searchParams?.origin} → {result.searchParams?.destination}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-slate-500">Passengers</p>
+            <p className="font-semibold text-slate-900">{totalPassengers} travellers</p>
+          </div>
+          <div>
+            <p className="text-sm text-slate-500">Class</p>
+            <p className="font-semibold text-slate-900">{result.searchParams?.travelClass?.replace('_', ' ')}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-slate-500">Price Range</p>
+            <p className="font-semibold text-slate-900">£{result.priceRange?.min} - £{result.priceRange?.max}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Best Deal */}
+      {bestOption?.savingsVsStandard > 0 && (
         <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -103,107 +157,138 @@ function ResultsDisplay({ result }: { result: any }) {
                 <Check className="w-5 h-5" />
               </div>
               <div>
-                <p className="font-semibold text-lg">Save £{savingsAmount}!</p>
-                <p className="text-green-100">{bestOption?.strategy}</p>
+                <p className="font-semibold text-lg">Best deal: Save £{bestOption.savingsVsStandard}</p>
+                <p className="text-green-100">{bestOption.strategy} • {bestOption.strategyDescription}</p>
               </div>
+            </div>            <div className="text-right">
+              <p className="text-3xl font-bold">£{bestOption.totalPrice}</p>
+              <p className="text-green-100 text-sm">£{bestOption.perPersonPrice} per person</p>
             </div>
-            <p className="text-3xl font-bold">£{bestOption?.totalPrice}</p>
-          </div>
-        </div>
+          </div>        </div>
       )}
 
-      <FlightCard option={bestOption} isBest={true} totalPassengers={totalPassengers} />
+      {/* Best Option Card */}
+      <FlightOptionCard option={bestOption} isBest={true} totalPassengers={totalPassengers} />
 
-      {alternatives.length > 0 && (
+      {/* Other Options */}
+      {optimizedOptions.length > 0 && (
         <>
-          <h3 className="font-semibold text-slate-900 mt-6 mb-3">Other options</h3>
-          {alternatives.map((alt: any, i: number) => (
-            <FlightCard key={i} option={alt} isBest={false} totalPassengers={totalPassengers} />
+          <h3 className="font-semibold text-slate-900 mt-8 mb-4">Other ways to save</h3>
+          {optimizedOptions.map((opt: any, i: number) => (
+            <FlightOptionCard key={i} option={opt} isBest={false} totalPassengers={totalPassengers} />
           ))}
+        </>
+      )}
+
+      {/* Standard Option */}
+      {standardOption && bestOption?.id !== standardOption?.id && (
+        <>
+          <h3 className="font-semibold text-slate-900 mt-8 mb-4">Standard option</h3>
+          <FlightOptionCard option={standardOption} isBest={false} totalPassengers={totalPassengers} />
         </>
       )}
     </div>
   );
 }
 
-function FlightCard({ option, isBest, totalPassengers }: { option: any; isBest: boolean; totalPassengers: number }) {
+function FlightOptionCard({ option, isBest, totalPassengers }: { option: any; isBest: boolean; totalPassengers: number }) {
   if (!option) return null;
-  
+
   const formatTime = (iso: string) => iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--';
   const formatDate = (iso: string) => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
 
   return (
     <div className={`bg-white rounded-xl shadow-lg overflow-hidden mb-4 ${isBest ? 'border-2 border-green-500' : 'border border-slate-200'}`}>
       {isBest && (
-        <div className="bg-green-50 px-4 py-2 border-b border-green-100">
+        <div className="bg-green-50 px-4 py-2 border-b border-green-100 flex items-center justify-between">
           <span className="font-medium text-green-800">{option.strategy}</span>
+          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Recommended</span>
         </div>
       )}
-      
+
       <div className="p-4">
-        <div className="flex justify-between items-center mb-4">
-          <div>{!isBest && <p className="text-sm text-slate-500">{option.strategy}</p>}</div>
+        {/* Header */}
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            {!isBest && <p className="font-medium text-slate-900">{option.strategy}</p>}
+            <p className="text-sm text-slate-500">{option.strategyDescription}</p>
+          </div>
           <div className="text-right">
             <p className="text-3xl font-bold text-slate-900">£{option.totalPrice}</p>
-            <p className="text-sm text-slate-500">£{Math.round(option.totalPrice / totalPassengers)} per person</p>
+            <p className="text-sm text-slate-500">£{option.perPersonPrice} per person</p>
+            {option.savingsVsStandard > 0 && (
+              <p className="text-sm text-green-600 font-medium">Save £{option.savingsVsStandard}</p>
+            )}
           </div>
         </div>
 
-        <div className="bg-slate-50 rounded-lg p-3 mb-3">
-          <p className="text-xs font-medium text-slate-500 uppercase mb-2">Outbound</p>
-          <div className="flex justify-between items-center">
-            <div className="text-center">
-              <p className="text-xl font-bold">{formatTime(option.outbound?.departureTime)}</p>
-              <p className="text-sm text-slate-600">{option.outbound?.origin}</p>
+        {/* Segments */}
+        {option.segments?.map((segment: any, idx: number) => (
+          <div key={idx} className="bg-slate-50 rounded-lg p-3 mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-slate-500 uppercase">{idx === 0 ? 'Outbound' : 'Return'}</span>
+              <span className="text-xs text-slate-400">{segment.airline} {segment.flightNumber}</span>
             </div>
-            <div className="flex-1 text-center">
-              <p className="text-xs text-slate-400">{option.outbound?.airline}</p>
-              <p className="text-xs text-slate-400">{option.outbound?.stops === 0 ? 'Direct' : `${option.outbound?.stops} stop${option.outbound?.stops > 1 ? 's' : ''}`}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold">{formatTime(option.outbound?.arrivalTime)}</p>
-              <p className="text-sm text-slate-600">{option.outbound?.destination}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-slate-50 rounded-lg p-3 mb-4">
-          <p className="text-xs font-medium text-slate-500 uppercase mb-2">Return</p>
-          <div className="flex justify-between items-center">
-            <div className="text-center">
-              <p className="text-xl font-bold">{formatTime(option.inbound?.departureTime)}</p>
-              <p className="text-sm text-slate-600">{option.inbound?.origin}</p>
-            </div>
-            <div className="flex-1 text-center">
-              <p className="text-xs text-slate-400">{option.inbound?.airline}</p>
-              <p className="text-xs text-slate-400">{option.inbound?.stops === 0 ? 'Direct' : `${option.inbound?.stops} stop${option.inbound?.stops > 1 ? 's' : ''}`}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold">{formatTime(option.inbound?.arrivalTime)}</p>
-              <p className="text-sm text-slate-600">{option.inbound?.destination}</p>
+            
+            <div className="flex items-center justify-between">
+              <div className="text-center">
+                <p className="text-xl font-bold text-slate-900">{formatTime(segment.departureTime)}</p>
+                <p className="text-sm text-slate-600">{segment.origin?.code}</p>
+                <p className="text-xs text-slate-400">{formatDate(segment.departureTime)}</p>
+              </div>
+              <div className="flex-1 px-4 flex flex-col items-center">
+                <div className="w-full h-px bg-slate-300 my-1 relative">
+                  <Plane className="w-4 h-4 text-slate-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                </div>
+                <p className="text-xs text-slate-400">{segment.stops === 0 ? 'Direct' : `${segment.stops} stop${segment.stops > 1 ? 's' : ''}`}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-bold text-slate-900">{formatTime(segment.arrivalTime)}</p>
+                <p className="text-sm text-slate-600">{segment.destination?.code}</p>
+                <p className="text-xs text-slate-400">{formatDate(segment.arrivalTime)}</p>
+              </div>
             </div>
           </div>
-        </div>
+        ))}
 
+        {/* Risks */}
         {option.risks?.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-            <p className="text-xs font-medium text-amber-800">⚠️ Important</p>
-            <ul className="text-xs text-amber-700 mt-1">
-              {option.risks.map((risk: string, i: number) => <li key={i}>• {risk}</li>)}
-            </ul>
-          </div>
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium text-amber-800">Important to know</p>
+                <ul className="text-xs text-amber-700 mt-1 space-y-1">
+                  {option.risks.map((risk: string, i: number) => <li key={i}>• {risk}</li>)}
+                </ul>
+              </div>
+            </div>          </div>
         )}
 
-        <a
-          href={option.bookingLink || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`block w-full text-center font-semibold py-3 rounded-lg ${
-            isBest ? 'bg-sky-500 hover:bg-sky-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-          }`}
-        >
-          {isBest ? 'Select this deal' : 'Select'}
-        </a>
+        {/* Booking Links */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-slate-500 uppercase">Book with</p>
+          <div className="grid grid-cols-2 gap-2">
+            {option.bookingLinks?.slice(0, 4).map((link: any, i: number) => (
+              <a
+                key={i}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                  i === 0 && isBest
+                    ? 'bg-sky-500 text-white border-sky-500 hover:bg-sky-600' 
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <span className="font-medium">{link.airline}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold">£{link.price}</span>
+                  <ExternalLink className="w-4 h-4" />
+                </div>
+              </a>
+            ))}
+          </div>        </div>
       </div>
     </div>
   );

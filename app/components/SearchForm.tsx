@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Calendar, Users, ArrowRight, Loader2, Plane, Repeat, Briefcase, Baby } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { searchLocations, Location } from "../lib/flight-engine";
+import { Calendar, Users, ArrowRight, Loader2, Plane, Repeat, MapPin, X } from "lucide-react";
 
 export interface SearchParams {
   origin: string;
@@ -26,6 +27,123 @@ const TRAVEL_CLASSES = [
   { value: "FIRST", label: "First Class" },
 ];
 
+// Location Autocomplete Component
+function LocationInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<Location[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (value && !selectedLocation) {
+      const loc = searchLocations(value)[0];
+      if (loc) {
+        setSelectedLocation(loc);
+        setQuery(`${loc.city} (${loc.code})`);
+      }
+    }
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newQuery = e.target.value;
+    setQuery(newQuery);
+    setSelectedLocation(null);
+    onChange("");
+
+    if (newQuery.length >= 2) {
+      const results = searchLocations(newQuery);
+      setSuggestions(results);
+      setIsOpen(results.length > 0);
+    } else {
+      setSuggestions([]);
+      setIsOpen(false);
+    }
+  };
+
+  const handleSelect = (location: Location) => {
+    setSelectedLocation(location);
+    setQuery(`${location.city} (${location.code})`);
+    onChange(location.city); // Pass city name for resolution
+    setIsOpen(false);
+  };
+
+  const handleClear = () => {
+    setQuery("");
+    setSelectedLocation(null);
+    onChange("");
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="block text-xs font-medium text-slate-500 uppercase mb-1">{label}</label>
+      <div className="relative">
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <input
+          type="text"
+          value={query}
+          onChange={handleInputChange}
+          onFocus={() => query.length >= 2 && suggestions.length > 0 && setIsOpen(true)}
+          placeholder={placeholder || "City or airport"}
+          className="w-full pl-10 pr-10 py-3 bg-transparent text-lg font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          autoComplete="off"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {isOpen && suggestions.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+          {suggestions.map((location) => (
+            <button
+              key={location.code}
+              type="button"
+              onClick={() => handleSelect(location)}
+              className="w-full px-4 py-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-slate-900">
+                    {location.city} <span className="text-sky-600">({location.code})</span>
+                  </p>
+                  <p className="text-sm text-slate-500">{location.name}, {location.country}</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SearchForm({ onSearch, loading }: SearchFormProps) {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
@@ -43,10 +161,10 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin || !destination || !departureDate) return;
-    
+
     onSearch({
-      origin: origin.toUpperCase(),
-      destination: destination.toUpperCase(),
+      origin,
+      destination,
       departureDate,
       returnDate: tripType === "return" ? returnDate : departureDate,
       adults,
@@ -85,22 +203,15 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
         ))}
       </div>
 
-      {/* Route */}
+      {/* Locations */}
       <div className="grid md:grid-cols-2 gap-3 relative">
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <label className="text-xs font-medium text-slate-500 uppercase">From</label>
-          <div className="flex items-center gap-2 mt-1">
-            <Plane className="w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value.toUpperCase())}
-              placeholder="LHR"
-              className="bg-transparent text-xl font-bold text-slate-900 w-full focus:outline-none uppercase"
-              maxLength={3}
-            />
-          </div>
-          <p className="text-xs text-slate-400 mt-1">3-letter airport code</p>
+          <LocationInput
+            label="From"
+            value={origin}
+            onChange={setOrigin}
+            placeholder="London"
+          />
         </div>
 
         <button
@@ -112,27 +223,20 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
         </button>
 
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <label className="text-xs font-medium text-slate-500 uppercase">To</label>
-          <div className="flex items-center gap-2 mt-1">
-            <Plane className="w-5 h-5 text-slate-400 rotate-90" />
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value.toUpperCase())}
-              placeholder="JFK"
-              className="bg-transparent text-xl font-bold text-slate-900 w-full focus:outline-none uppercase"
-              maxLength={3}
-            />
-          </div>
-          <p className="text-xs text-slate-400 mt-1">3-letter airport code</p>
+          <LocationInput
+            label="To"
+            value={destination}
+            onChange={setDestination}
+            placeholder="New York"
+          />
         </div>
       </div>
 
       {/* Dates */}
       <div className="grid md:grid-cols-2 gap-3">
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <label className="text-xs font-medium text-slate-500 uppercase">Depart</label>
-          <div className="flex items-center gap-2 mt-1">
+          <label className="block text-xs font-medium text-slate-500 uppercase mb-1">Depart</label>
+          <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-slate-400" />
             <input
               type="date"
@@ -147,8 +251,8 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
 
         {tripType === "return" && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <label className="text-xs font-medium text-slate-500 uppercase">Return</label>
-            <div className="flex items-center gap-2 mt-1">
+            <label className="block text-xs font-medium text-slate-500 uppercase mb-1">Return</label>
+            <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-slate-400" />
               <input
                 type="date"
@@ -165,14 +269,13 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
 
       {/* Passengers & Class */}
       <div className="grid md:grid-cols-2 gap-3">
-        {/* Passenger Dropdown */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setShowPassengerDropdown(!showPassengerDropdown)}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-left hover:border-sky-300 transition-colors"
           >
-            <label className="text-xs font-medium text-slate-500 uppercase">Travellers</label>
+            <label className="block text-xs font-medium text-slate-500 uppercase">Travellers</label>
             <div className="flex items-center gap-2 mt-1">
               <Users className="w-5 h-5 text-slate-400" />
               <span className="text-lg font-semibold text-slate-900">
@@ -184,7 +287,6 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
           {showPassengerDropdown && (
             <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-lg p-4">
               <PassengerRow
-                icon={<Users className="w-5 h-5" />}
                 label="Adults"
                 sublabel="12+ years"
                 value={adults}
@@ -193,7 +295,6 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
                 max={9}
               />
               <PassengerRow
-                icon={<Briefcase className="w-5 h-5" />}
                 label="Children"
                 sublabel="2-11 years"
                 value={children}
@@ -202,7 +303,6 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
                 max={8}
               />
               <PassengerRow
-                icon={<Baby className="w-5 h-5" />}
                 label="Infants"
                 sublabel="Under 2 years"
                 value={infants}
@@ -221,9 +321,8 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
           )}
         </div>
 
-        {/* Travel Class */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <label className="text-xs font-medium text-slate-500 uppercase">Class</label>
+          <label className="block text-xs font-medium text-slate-500 uppercase">Class</label>
           <select
             value={travelClass}
             onChange={(e) => setTravelClass(e.target.value as SearchParams["travelClass"])}
@@ -245,7 +344,7 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
         {loading ? (
           <>
             <Loader2 className="w-5 h-5 animate-spin" />
-            Searching {totalPassengers} passenger{totalPassengers > 1 ? "s" : ""}...
+            Finding best deals...
           </>
         ) : (
           <>
@@ -259,7 +358,6 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
 }
 
 function PassengerRow({
-  icon,
   label,
   sublabel,
   value,
@@ -267,7 +365,6 @@ function PassengerRow({
   min,
   max,
 }: {
-  icon: React.ReactNode;
   label: string;
   sublabel: string;
   value: number;
@@ -277,12 +374,9 @@ function PassengerRow({
 }) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0">
-      <div className="flex items-center gap-3">
-        <div className="text-slate-400">{icon}</div>
-        <div>
-          <p className="font-medium text-slate-900">{label}</p>
-          <p className="text-xs text-slate-500">{sublabel}</p>
-        </div>
+      <div>
+        <p className="font-medium text-slate-900">{label}</p>
+        <p className="text-xs text-slate-500">{sublabel}</p>
       </div>
       <div className="flex items-center gap-3">
         <button

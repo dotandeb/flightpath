@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchFlights } from "@/app/lib/flight-api";
+import { optimizeFlights, SearchParams } from "@/app/lib/flight-engine";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,26 +12,19 @@ export async function POST(request: NextRequest) {
       adults = 1, 
       children = 0, 
       infants = 0,
-      travelClass = "ECONOMY"
+      travelClass = "ECONOMY",
+      flexibleDates = false,
     } = body;
 
     // Validate required fields
     if (!origin || !destination || !departureDate) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Missing required fields: origin, destination, departureDate" },
         { status: 400 }
       );
     }
 
-    // Validate airport codes
-    if (!/^[A-Za-z]{3}$/.test(origin) || !/^[A-Za-z]{3}$/.test(destination)) {
-      return NextResponse.json(
-        { error: "Invalid airport code. Use 3-letter codes like LHR, JFK." },
-        { status: 400 }
-      );
-    }
-
-    console.log("Searching flights:", { 
+    console.log("Flight optimization request:", { 
       origin, 
       destination, 
       departureDate, 
@@ -39,26 +32,29 @@ export async function POST(request: NextRequest) {
       adults,
       children,
       infants,
-      travelClass
+      travelClass,
     });
 
-    const results = await searchFlights({
-      origin: origin.toUpperCase(),
-      destination: destination.toUpperCase(),
+    const params: SearchParams = {
+      origin,
+      destination,
       departureDate,
       returnDate,
       adults,
       children,
       infants,
       travelClass,
-    });
+      flexibleDates,
+    };
+
+    const results = await optimizeFlights(params);
 
     return NextResponse.json(results);
   } catch (error: any) {
-    console.error("Search error:", error);
+    console.error("Optimization error:", error);
     
     return NextResponse.json(
-      { error: error.message || "Failed to search flights" },
+      { error: error.message || "Failed to optimize flights" },
       { status: 500 }
     );
   }
