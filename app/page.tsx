@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SearchForm, SearchParams } from "./components/SearchForm";
-import { Plane, Check, ArrowRight, Clock, AlertTriangle, ExternalLink, Sparkles, Shield, Zap, Globe, Lock, CreditCard, X } from "lucide-react";
+import { Plane, Check, ArrowRight, AlertTriangle, ExternalLink, Sparkles, Shield, Zap, Globe, Lock, CreditCard, X, ChevronDown, Mail, Search, Bell, Wallet } from "lucide-react";
 
 export default function Home() {
   const [results, setResults] = useState<any>(null);
@@ -10,6 +10,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<any>(null);
+  const [openFaq, setOpenFaq] = useState<string | null>(null);
 
   const handleSearch = async (params: SearchParams) => {
     setLoading(true);
@@ -43,6 +44,10 @@ export default function Home() {
     setShowPaywall(true);
   };
 
+  const toggleFaq = (id: string) => {
+    setOpenFaq(openFaq === id ? null : id);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* Header */}
@@ -59,10 +64,11 @@ export default function Home() {
           </div>
           
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
-            <a href="#" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</a>
+            <a href="#how-it-works" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
+            <a href="#savings" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Savings</a>
+            <a href="#faq" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">FAQ</a>
             <button className="text-sm bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors font-medium">
-              Sign Up - 5 Free Searches
+              Sign Up - 5 Free
             </button>
           </nav>
         </div>
@@ -181,6 +187,107 @@ export default function Home() {
         </div>
       </div>
 
+      {/* How It Works Section */}
+      <section id="how-it-works" className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <span className="text-sm font-semibold text-sky-600 uppercase tracking-wide">How It Works</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-2 mb-4">
+              Prices change. We catch it. You save.
+            </h2>
+          </div>
+          
+          <div className="grid md:grid-cols-4 gap-8">
+            <StepCard 
+              number="1"
+              icon={<Search className="w-6 h-6" />}
+              title="Search any flight"
+              description="Use our smart search to find flights across 500+ airlines with real-time prices."
+            />
+            <StepCard 
+              number="2"
+              icon={<Zap className="w-6 h-6" />}
+              title="We find savings"
+              description="Our AI checks split tickets, nearby airports, and flexible dates automatically."
+            />
+            <StepCard 
+              number="3"
+              icon={<Bell className="w-6 h-6" />}
+              title="Track & alert"
+              description="Set price alerts and we'll notify you when fares drop for your route."
+            />
+            <StepCard 
+              number="4"
+              icon={<Wallet className="w-6 h-6" />}
+              title="Book & save"
+              description="Book directly with airlines or through our partners. Keep the savings."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-16 bg-slate-50">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="bg-gradient-to-r from-sky-500 to-blue-600 rounded-2xl p-8 md:p-12 text-white text-center">
+            <p className="text-lg md:text-xl font-medium mb-2">Did you know?</p>
+            <h3 className="text-3xl md:text-4xl font-bold mb-4">Flight prices can change up to 50 times before departure</h3>
+            <p className="text-sky-100 max-w-2xl mx-auto">
+              FlightPath monitors prices 24/7 and finds you the best deals using smart arbitrage strategies.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Real Savings Section */}
+      <section id="savings" className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <span className="text-sm font-semibold text-sky-600 uppercase tracking-wide">Real Savings</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-2 mb-4">Real bookings. Real savings.</h2>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-6">
+            <SavingCard 
+              amount="£340"
+              percent="28%"
+              route="London → Bangkok"
+              classType="Economy"
+            />
+            <SavingCard 
+              amount="£892"
+              percent="35%"
+              route="London → New York"
+              classType="Business"
+            />
+            <SavingCard 
+              amount="£156"
+              percent="22%"
+              route="London → Barcelona"
+              classType="Economy"
+            />
+            <SavingCard 
+              amount="£1,247"
+              percent="31%"
+              route="London → Sydney"
+              classType="Premium Economy"
+            />
+            <SavingCard 
+              amount="£423"
+              percent="25%"
+              route="London → Dubai"
+              classType="Economy"
+            />
+            <SavingCard 
+              amount="£678"
+              percent="29%"
+              route="London → Tokyo"
+              classType="Business"
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Results Section */}
       <div className="max-w-6xl mx-auto px-4 py-8">
         {error && (
@@ -242,23 +349,189 @@ export default function Home() {
         )}
       </div>
 
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 bg-slate-50">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <span className="text-sm font-semibold text-sky-600 uppercase tracking-wide">FAQ</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-2">Frequently Asked Questions</h2>
+          </div>
+          
+          <div className="space-y-4">
+            <FaqItem 
+              id="faq1"
+              question="How does FlightPath find cheaper flights?"
+              answer="We use multiple strategies: split ticketing (booking separate one-way tickets), checking nearby airports, and comparing flexible dates. Our AI analyzes these options in real-time using Amadeus data."
+              isOpen={openFaq === 'faq1'}
+              onToggle={() => toggleFaq('faq1')}
+            />
+            
+            <FaqItem 
+              id="faq2"
+              question="Is FlightPath free to use?"
+              answer="Yes! You get 5 free flight searches when you sign up. After that, you can unlock unlimited searches for a one-time payment of £4.99. No subscription, no hidden fees."
+              isOpen={openFaq === 'faq2'}
+              onToggle={() => toggleFaq('faq2')}
+            />
+            
+            <FaqItem 
+              id="faq3"
+              question="Do I book directly with airlines?"
+              answer="Yes. We show you the best deals and redirect you to book directly with airlines or trusted partners like Skyscanner. We don't handle bookings ourselves - you get the best price with full airline protection."
+              isOpen={openFaq === 'faq3'}
+              onToggle={() => toggleFaq('faq3')}
+            />
+            
+            <FaqItem 
+              id="faq4"
+              question="How is this different from Skyscanner or Google Flights?"
+              answer="We go beyond basic search. While they show standard prices, we actively look for pricing inefficiencies like split tickets and alternative airports that can save you 20-40%."
+              isOpen={openFaq === 'faq4'}
+              onToggle={() => toggleFaq('faq4')}
+            />
+            
+            <FaqItem 
+              id="faq5"
+              question="Are the prices real-time?"
+              answer="Yes! We use the Amadeus API, the same system used by major airlines and travel sites. Prices are live and update in real-time."
+              isOpen={openFaq === 'faq5'}
+              onToggle={() => toggleFaq('faq5')}
+            />
+            
+            <FaqItem 
+              id="faq6"
+              question="What is split ticketing?"
+              answer="Split ticketing is booking two separate one-way tickets instead of a return ticket. Sometimes this is significantly cheaper because airlines price one-way and return tickets differently."
+              isOpen={openFaq === 'faq6'}
+              onToggle={() => toggleFaq('faq6')}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Ready to find your next deal?</h2>
+          <p className="text-lg text-slate-600 mb-8">Join thousands of travelers saving money on flights every day.</p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button className="bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-4 px-8 rounded-xl hover:from-sky-600 hover:to-blue-700 transition-colors shadow-lg shadow-sky-500/20">
+              Get 5 Free Searches
+            </button>
+            <button className="bg-white text-slate-700 font-semibold py-4 px-8 rounded-xl border-2 border-slate-200 hover:border-sky-300 transition-colors">
+              Learn More
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
-      <footer className="border-t border-slate-200 mt-20">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-sky-500 rounded-md flex items-center justify-center">
-                <Plane className="w-3 h-3 text-white" />
+      <footer className="border-t border-slate-200 bg-slate-50">
+        <div className="max-w-6xl mx-auto px-4 py-12">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center">
+                  <Plane className="w-4 h-4 text-white" />
+                </div>
+                <span className="font-bold text-slate-900">FlightPath</span>
               </div>
-              <span className="font-semibold text-slate-900">FlightPath</span>
+              <p className="text-sm text-slate-500">Find hidden flight deals with smart arbitrage strategies.</p>
             </div>
             
-            <p className="text-sm text-slate-500">
-              © 2026 FlightPath. All rights reserved.
-            </p>
+            <div>
+              <h4 className="font-semibold text-slate-900 mb-4">Product</h4>
+              <ul className="space-y-2 text-sm text-slate-500">
+                <li><a href="#" className="hover:text-sky-600">Search Flights</a></li>
+                <li><a href="#" className="hover:text-sky-600">Price Alerts</a></li>
+                <li><a href="#" className="hover:text-sky-600">Mobile App</a></li>
+                <li><a href="#" className="hover:text-sky-600">API</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-slate-900 mb-4">Company</h4>
+              <ul className="space-y-2 text-sm text-slate-500">
+                <li><a href="#" className="hover:text-sky-600">About</a></li>
+                <li><a href="#" className="hover:text-sky-600">Blog</a></li>
+                <li><a href="#" className="hover:text-sky-600">Careers</a></li>
+                <li><a href="#" className="hover:text-sky-600">Contact</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-slate-900 mb-4">Legal</h4>
+              <ul className="space-y-2 text-sm text-slate-500">
+                <li><a href="#" className="hover:text-sky-600">Privacy</a></li>
+                <li><a href="#" className="hover:text-sky-600">Terms</a></li>
+                <li><a href="#" className="hover:text-sky-600">Cookies</a></li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="pt-8 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-slate-500">© 2026 FlightPath. All rights reserved.</p>
+            <div className="flex items-center gap-4">
+              <a href="#" className="text-slate-400 hover:text-sky-600"><Mail className="w-5 h-5" /></a>
+              <a href="#" className="text-slate-400 hover:text-sky-600">Twitter</a>
+              <a href="#" className="text-slate-400 hover:text-sky-600">Instagram</a>
+            </div>
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// Component definitions...
+function StepCard({ number, icon, title, description }: { number: string; icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="text-center">
+      <div className="w-16 h-16 bg-sky-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-sky-600">
+        {icon}
+      </div>
+      <div className="w-8 h-8 bg-sky-500 text-white rounded-full flex items-center justify-center mx-auto -mt-12 mb-4 text-sm font-bold border-4 border-white">
+        {number}
+      </div>
+      <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
+      <p className="text-slate-600 text-sm">{description}</p>
+    </div>
+  );
+}
+
+function SavingCard({ amount, percent, route, classType }: { amount: string; percent: string; route: string; classType: string }) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <p className="text-2xl font-bold text-green-600">{amount} Saved</p>
+          <p className="text-sm text-slate-500">{percent} off original price</p>
+        </div>
+        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">{classType}</span>
+      </div>
+      <div className="border-t border-slate-100 pt-4">
+        <p className="font-semibold text-slate-900">{route}</p>
+      </div>
+    </div>
+  );
+}
+
+function FaqItem({ id, question, answer, isOpen, onToggle }: { id: string; question: string; answer: string; isOpen: boolean; onToggle: () => void }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+      >
+        <span className="font-semibold text-slate-900">{question}</span>
+        <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="px-6 pb-4">
+          <p className="text-slate-600">{answer}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -274,6 +547,7 @@ function FeatureCard({ title, description, icon }: { title: string; description:
 }
 
 function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (flight: any) => void }) {
+  // ... (keep existing ResultsDisplay code)
   if (!result || result.error) {
     return <div className="p-4 bg-red-50 rounded-lg text-red-700">{result?.error || "Error"}</div>;
   }
