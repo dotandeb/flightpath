@@ -1,51 +1,111 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { SearchForm, SearchParams } from "./components/SearchForm";
-import { Plane, Check, ArrowRight, AlertTriangle, ExternalLink, Sparkles, Shield, Zap, Globe, Lock, CreditCard, X, ChevronDown, Mail, Search, Bell, Wallet } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { SearchForm, SearchParams } from './components/SearchForm';
+import { Plane, Check, ArrowRight, AlertTriangle, Sparkles, Shield, Zap, Globe, Lock, X, ChevronDown, Mail, Search, Bell, Wallet, Info, Route, Ticket, MapPin } from 'lucide-react';
+import { getCurrentUser, canUserSearch, incrementSearchCount } from './lib/auth';
 
 export default function Home() {
+  const router = useRouter();
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [selectedFlight, setSelectedFlight] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
+  const [searchesRemaining, setSearchesRemaining] = useState<number | null>(null);
   const [openFaq, setOpenFaq] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const [teaserUsed, setTeaserUsed] = useState(false);
+
+  // Check for user on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('flightpath_user');
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+      setUser(parsed);
+      checkSearchLimit(parsed.id);
+    }
+    // Check teaser in browser only
+    if (typeof window !== 'undefined') {
+      setTeaserUsed(!!sessionStorage.getItem('flightpath_teaser'));
+    }
+  }, []);
+
+  const checkSearchLimit = async (userId: string) => {
+    const { remaining } = await canUserSearch(userId);
+    setSearchesRemaining(remaining);
+  };
 
   const handleSearch = async (params: SearchParams) => {
+    // Check if user can search
+    if (user) {
+      const { canSearch, remaining } = await canUserSearch(user.id);
+      if (!canSearch) {
+        setShowAuthModal(true);
+        return;
+      }
+      setSearchesRemaining(remaining - 1);
+      await incrementSearchCount(user.id);
+    } else {
+      // Allow 1 search without signup (teaser) - only in browser
+      if (typeof window !== 'undefined') {
+        const teaserUsed = sessionStorage.getItem('flightpath_teaser');
+        if (teaserUsed) {
+          setShowAuthModal(true);
+          return;
+        }
+        sessionStorage.setItem('flightpath_teaser', 'used');
+      }
+    }
+
     setLoading(true);
     setError(null);
     setResults(null);
-    setShowPaywall(false);
     
     try {
-      const response = await fetch("/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to search flights");
+        throw new Error(data.error || 'Failed to search flights');
       }
 
       setResults(data);
+      // Scroll to results
+      setTimeout(() => {
+        document.getElementById('search-results')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     } catch (err: any) {
-      setError(err.message || "Failed to search flights");
+      setError(err.message || 'Failed to search flights');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBookClick = (flight: any) => {
-    setSelectedFlight(flight);
-    setShowPaywall(true);
+  const handleBookClick = () => {
+    if (!user) {
+      setShowAuthModal(true);
+    } else {
+      // User is logged in, show booking options
+      // This would normally show the actual booking links
+      alert('Booking links would show here for logged in users!');
+    }
   };
 
   const toggleFaq = (id: string) => {
     setOpenFaq(openFaq === id ? null : id);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('flightpath_user');
+    setUser(null);
+    setSearchesRemaining(null);
   };
 
   return (
@@ -58,238 +118,121 @@ export default function Home() {
               <Plane className="w-5 h-5 text-white" />
             </div>
             <span className="font-bold text-xl text-slate-900">FlightPath</span>
-            <span className="hidden sm:inline-flex ml-2 text-xs bg-gradient-to-r from-sky-100 to-blue-100 text-sky-700 px-2 py-1 rounded-full font-medium">
-              Smart Search
-            </span>
           </div>
           
-          <nav className="hidden md:flex items-center gap-6">
-            <a href="#how-it-works" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">How it works</a>
-            <a href="#savings" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Savings</a>
-            <a href="#faq" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">FAQ</a>
-            <button className="text-sm bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors font-medium">
-              Sign Up - 5 Free
-            </button>
-          </nav>
+          <div className="flex items-center gap-4">
+            {user ? (
+              <>
+                <div className="hidden sm:flex items-center gap-2 text-sm">
+                  <span className="text-slate-500">{user.is_admin ? 'Unlimited' : `${searchesRemaining} searches left`}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600 hidden sm:inline">{user.email}</span>
+                  <button 
+                    onClick={handleLogout}
+                    className="text-sm text-slate-500 hover:text-slate-700"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <a href="/signin" className="text-sm text-slate-600 hover:text-slate-900">Sign in</a>
+                <a 
+                  href="/signup" 
+                  className="text-sm bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors font-medium"
+                >
+                  Get 1 Free Search
+                </a>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Paywall Modal */}
-      {showPaywall && selectedFlight && (
+      {/* Auth Modal */}
+      {showAuthModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
             <button 
-              onClick={() => setShowPaywall(false)}
+              onClick={() => setShowAuthModal(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
             >
               <X className="w-5 h-5" />
             </button>
             
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-8 h-8 text-amber-600" />
+            <div className="text-center">
+              <div className="w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Lock className="w-8 h-8 text-sky-600" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Unlock Booking Links</h2>
-              <p className="text-slate-600">
-                Get instant access to book this flight with our partner airlines
-              </p>
-            </div>
-            
-            <div className="bg-slate-50 rounded-xl p-4 mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-slate-600">Flight</span>
-                <span className="font-semibold">{selectedFlight.airline} {selectedFlight.flightNumber}</span>
-              </div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-slate-600">Route</span>
-                <span className="font-semibold">{selectedFlight.origin} → {selectedFlight.destination}</span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                <span className="text-slate-600">Price</span>
-                <span className="text-2xl font-bold text-sky-600">{selectedFlight.currency} {selectedFlight.price}</span>
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              <button className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:from-sky-600 hover:to-blue-700 transition-colors">
-                <Sparkles className="w-5 h-5" />
-                Sign Up Free - 5 Searches
-              </button>
-              
-              <p className="text-center text-sm text-slate-500">
-                ✓ 5 free flight searches • No credit card required
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Unlock More Searches</h2>
+              <p className="text-slate-600 mb-6">
+                {user 
+                  ? "You've used your free searches. Upgrade for unlimited access."
+                  : "Sign up to get 1 free flight search and unlock booking links."
+                }
               </p>
               
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-slate-500">or</span>
-                </div>
+              <div className="space-y-3">
+                {!user && (
+                  <a
+                    href="/signup"
+                    className="block w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-4 rounded-xl text-center hover:from-sky-600 hover:to-blue-700 transition-colors"
+                  >
+                    Sign Up Free - 1 Search
+                  </a>
+                )}
+                <button className="w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200 transition-colors">
+                  Unlock Unlimited - £4.99
+                </button>
               </div>
-              
-              <button className="w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200 transition-colors">
-                <CreditCard className="w-4 h-4 inline mr-2" />
-                Unlock Unlimited - £4.99
-              </button>
-              
-              <p className="text-center text-xs text-slate-400">
-                One-time payment • Unlimited searches forever
-              </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Hero Section */}
+      {/* Hero Section with Search */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-20"></div>
         </div>
         
-        <div className="relative max-w-6xl mx-auto px-4 py-16 md:py-24">
-          <div className="text-center mb-10">
+        <div className="relative max-w-6xl mx-auto px-4 py-16 md:py-20">
+          <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white/90 px-4 py-2 rounded-full text-sm font-medium mb-6">
               <Sparkles className="w-4 h-4" />
               <span>Powered by Amadeus Real-Time Data</span>
             </div>
             
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Find hidden flight deals
             </h1>
-            <p className="text-lg md:text-xl text-sky-100 max-w-2xl mx-auto mb-8">
-              Our AI searches multiple strategies: split tickets, nearby airports, and flexible dates to save you up to 40%
+            <p className="text-lg text-sky-100 max-w-2xl mx-auto">
+              Our AI searches multiple strategies to save you up to 40%
             </p>
-            
-            <div className="flex flex-wrap justify-center gap-4 text-sm text-sky-100">
-              <div className="flex items-center gap-1">
-                <Shield className="w-4 h-4" />
-                <span>No hidden fees</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Zap className="w-4 h-4" />
-                <span>Real-time prices</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Globe className="w-4 h-4" />
-                <span>500+ airlines</span>
-              </div>
-            </div>
           </div>
 
           {/* Search Form */}
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl shadow-2xl shadow-black/10 p-6 md:p-8">
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-white rounded-2xl shadow-2xl shadow-black/10 p-6">
               <SearchForm onSearch={handleSearch} loading={loading} />
             </div>
           </div>
+
+          {/* Search Status */}
+          {!user && !teaserUsed && (
+            <div className="text-center">
+              <p className="text-sky-100 text-sm">
+                🎁 Try 1 search free, no signup required
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-20 bg-white">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <span className="text-sm font-semibold text-sky-600 uppercase tracking-wide">How It Works</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-2 mb-4">
-              Prices change. We catch it. You save.
-            </h2>
-          </div>
-          
-          <div className="grid md:grid-cols-4 gap-8">
-            <StepCard 
-              number="1"
-              icon={<Search className="w-6 h-6" />}
-              title="Search any flight"
-              description="Use our smart search to find flights across 500+ airlines with real-time prices."
-            />
-            <StepCard 
-              number="2"
-              icon={<Zap className="w-6 h-6" />}
-              title="We find savings"
-              description="Our AI checks split tickets, nearby airports, and flexible dates automatically."
-            />
-            <StepCard 
-              number="3"
-              icon={<Bell className="w-6 h-6" />}
-              title="Track & alert"
-              description="Set price alerts and we'll notify you when fares drop for your route."
-            />
-            <StepCard 
-              number="4"
-              icon={<Wallet className="w-6 h-6" />}
-              title="Book & save"
-              description="Book directly with airlines or through our partners. Keep the savings."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="py-16 bg-slate-50">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="bg-gradient-to-r from-sky-500 to-blue-600 rounded-2xl p-8 md:p-12 text-white text-center">
-            <p className="text-lg md:text-xl font-medium mb-2">Did you know?</p>
-            <h3 className="text-3xl md:text-4xl font-bold mb-4">Flight prices can change up to 50 times before departure</h3>
-            <p className="text-sky-100 max-w-2xl mx-auto">
-              FlightPath monitors prices 24/7 and finds you the best deals using smart arbitrage strategies.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Real Savings Section */}
-      <section id="savings" className="py-20 bg-white">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <span className="text-sm font-semibold text-sky-600 uppercase tracking-wide">Real Savings</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-2 mb-4">Real bookings. Real savings.</h2>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            <SavingCard 
-              amount="£340"
-              percent="28%"
-              route="London → Bangkok"
-              classType="Economy"
-            />
-            <SavingCard 
-              amount="£892"
-              percent="35%"
-              route="London → New York"
-              classType="Business"
-            />
-            <SavingCard 
-              amount="£156"
-              percent="22%"
-              route="London → Barcelona"
-              classType="Economy"
-            />
-            <SavingCard 
-              amount="£1,247"
-              percent="31%"
-              route="London → Sydney"
-              classType="Premium Economy"
-            />
-            <SavingCard 
-              amount="£423"
-              percent="25%"
-              route="London → Dubai"
-              classType="Economy"
-            />
-            <SavingCard 
-              amount="£678"
-              percent="29%"
-              route="London → Tokyo"
-              classType="Business"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Results Section */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* SEARCH RESULTS - Right under search box */}
+      <div id="search-results" className="max-w-6xl mx-auto px-4 -mt-8 relative z-10">
         {error && (
           <div className="max-w-4xl mx-auto mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 flex-shrink-0" />
@@ -299,184 +242,80 @@ export default function Home() {
 
         {results && (
           <div className="max-w-4xl mx-auto">
-            <ResultsDisplay result={results} onBookClick={handleBookClick} />
-          </div>
-        )}
-
-        {!results && !loading && (
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-10">
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Why use FlightPath?</h2>
-              <p className="text-slate-600">Smart strategies to find cheaper flights</p>
-            </div>
-            
-            <div className="grid md:grid-cols-3 gap-6">
-              <FeatureCard
-                title="Split Ticketing"
-                description="Book separate one-way tickets instead of returns. Often 20-40% cheaper."
-                icon="🎫"
-              />
-              <FeatureCard
-                title="Nearby Airports"
-                description="Check alternative airports within 150km. Hidden gems for less."
-                icon="🗺️"
-              />
-              <FeatureCard
-                title="Flexible Dates"
-                description="Flying a day earlier or later can save hundreds."
-                icon="📅"
-              />
-            </div>
-            
-            {/* Trust badges */}
-            <div className="mt-16 flex flex-wrap justify-center items-center gap-8 text-slate-400">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-slate-900">40%</p>
-                <p className="text-sm">Max savings</p>
-              </div>
-              <div className="w-px h-12 bg-slate-200"></div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-slate-900">500+</p>
-                <p className="text-sm">Airlines</p>
-              </div>
-              <div className="w-px h-12 bg-slate-200"></div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-slate-900">Real</p>
-                <p className="text-sm">Time data</p>
-              </div>
-            </div>
+            <ResultsDisplay 
+              result={results} 
+              onBookClick={handleBookClick}
+              user={user}
+            />
           </div>
         )}
       </div>
 
-      {/* FAQ Section */}
-      <section id="faq" className="py-20 bg-slate-50">
-        <div className="max-w-3xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <span className="text-sm font-semibold text-sky-600 uppercase tracking-wide">FAQ</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-2">Frequently Asked Questions</h2>
-          </div>
-          
-          <div className="space-y-4">
-            <FaqItem 
-              id="faq1"
-              question="How does FlightPath find cheaper flights?"
-              answer="We use multiple strategies: split ticketing (booking separate one-way tickets), checking nearby airports, and comparing flexible dates. Our AI analyzes these options in real-time using Amadeus data."
-              isOpen={openFaq === 'faq1'}
-              onToggle={() => toggleFaq('faq1')}
-            />
-            
-            <FaqItem 
-              id="faq2"
-              question="Is FlightPath free to use?"
-              answer="Yes! You get 5 free flight searches when you sign up. After that, you can unlock unlimited searches for a one-time payment of £4.99. No subscription, no hidden fees."
-              isOpen={openFaq === 'faq2'}
-              onToggle={() => toggleFaq('faq2')}
-            />
-            
-            <FaqItem 
-              id="faq3"
-              question="Do I book directly with airlines?"
-              answer="Yes. We show you the best deals and redirect you to book directly with airlines or trusted partners like Skyscanner. We don't handle bookings ourselves - you get the best price with full airline protection."
-              isOpen={openFaq === 'faq3'}
-              onToggle={() => toggleFaq('faq3')}
-            />
-            
-            <FaqItem 
-              id="faq4"
-              question="How is this different from Skyscanner or Google Flights?"
-              answer="We go beyond basic search. While they show standard prices, we actively look for pricing inefficiencies like split tickets and alternative airports that can save you 20-40%."
-              isOpen={openFaq === 'faq4'}
-              onToggle={() => toggleFaq('faq4')}
-            />
-            
-            <FaqItem 
-              id="faq5"
-              question="Are the prices real-time?"
-              answer="Yes! We use the Amadeus API, the same system used by major airlines and travel sites. Prices are live and update in real-time."
-              isOpen={openFaq === 'faq5'}
-              onToggle={() => toggleFaq('faq5')}
-            />
-            
-            <FaqItem 
-              id="faq6"
-              question="What is split ticketing?"
-              answer="Split ticketing is booking two separate one-way tickets instead of a return ticket. Sometimes this is significantly cheaper because airlines price one-way and return tickets differently."
-              isOpen={openFaq === 'faq6'}
-              onToggle={() => toggleFaq('faq6')}
-            />
-          </div>
-        </div>
-      </section>
+      {/* Rest of page (only show if no results) */}
+      {!results && (
+        <>
+          {/* How It Works */}
+          <section className="py-20 bg-white">
+            <div className="max-w-6xl mx-auto px-4">
+              <div className="text-center mb-16">
+                <span className="text-sm font-semibold text-sky-600 uppercase tracking-wide">How It Works</span>
+                <h2 className="text-3xl font-bold text-slate-900 mt-2">We find savings you can't see</h2>
+              </div>
+              
+              <div className="grid md:grid-cols-4 gap-8">
+                <StepCard number="1" icon={<Search className="w-6 h-6" />} title="Search" description="Enter your route and dates" />
+                <StepCard number="2" icon={<Zap className="w-6 h-6" />} title="Analyze" description="We check 5+ booking strategies" />
+                <StepCard number="3" icon={<Ticket className="w-6 h-6" />} title="Compare" description="See side-by-side savings" />
+                <StepCard number="4" icon={<Wallet className="w-6 h-6" />} title="Book" description="Book directly with airlines" />
+              </div>
+            </div>
+          </section>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Ready to find your next deal?</h2>
-          <p className="text-lg text-slate-600 mb-8">Join thousands of travelers saving money on flights every day.</p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-4 px-8 rounded-xl hover:from-sky-600 hover:to-blue-700 transition-colors shadow-lg shadow-sky-500/20">
-              Get 5 Free Searches
-            </button>
-            <button className="bg-white text-slate-700 font-semibold py-4 px-8 rounded-xl border-2 border-slate-200 hover:border-sky-300 transition-colors">
-              Learn More
-            </button>
-          </div>
-        </div>
-      </section>
+          {/* Strategies Explained */}
+          <section className="py-20 bg-slate-50">
+            <div className="max-w-6xl mx-auto px-4">
+              <div className="text-center mb-16">
+                <span className="text-sm font-semibold text-sky-600 uppercase tracking-wide">Our Strategies</span>
+                <h2 className="text-3xl font-bold text-slate-900 mt-2">How we find cheaper flights</h2>
+              </div>
+              
+              <div className="grid md:grid-cols-3 gap-6">
+                <StrategyCard 
+                  icon="🎫"
+                  title="Split Ticketing"
+                  description="Booking two one-way tickets with different airlines is often cheaper than a return ticket. We check all combinations."
+                  savings="Up to 40%"
+                />
+                <StrategyCard 
+                  icon="🗺️"
+                  title="Nearby Airports"
+                  description="Flying from Gatwick instead of Heathrow, or into Oakland instead of SFO can save hundreds. We check airports within 150km."
+                  savings="Up to 25%"
+                />
+                <StrategyCard 
+                  icon="📅"
+                  title="Flexible Dates"
+                  description="Flying Tuesday instead of Friday, or adding a Saturday night stay can dramatically reduce prices."
+                  savings="Up to 30%"
+                />
+              </div>
+            </div>
+          </section>
+        </>
+      )}
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-slate-50">
-        <div className="max-w-6xl mx-auto px-4 py-12">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center">
-                  <Plane className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-bold text-slate-900">FlightPath</span>
+      <footer className="border-t border-slate-200 bg-white mt-20">
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-sky-500 rounded-md flex items-center justify-center">
+                <Plane className="w-3 h-3 text-white" />
               </div>
-              <p className="text-sm text-slate-500">Find hidden flight deals with smart arbitrage strategies.</p>
+              <span className="font-semibold text-slate-900">FlightPath</span>
             </div>
             
-            <div>
-              <h4 className="font-semibold text-slate-900 mb-4">Product</h4>
-              <ul className="space-y-2 text-sm text-slate-500">
-                <li><a href="#" className="hover:text-sky-600">Search Flights</a></li>
-                <li><a href="#" className="hover:text-sky-600">Price Alerts</a></li>
-                <li><a href="#" className="hover:text-sky-600">Mobile App</a></li>
-                <li><a href="#" className="hover:text-sky-600">API</a></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-slate-900 mb-4">Company</h4>
-              <ul className="space-y-2 text-sm text-slate-500">
-                <li><a href="#" className="hover:text-sky-600">About</a></li>
-                <li><a href="#" className="hover:text-sky-600">Blog</a></li>
-                <li><a href="#" className="hover:text-sky-600">Careers</a></li>
-                <li><a href="#" className="hover:text-sky-600">Contact</a></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-slate-900 mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm text-slate-500">
-                <li><a href="#" className="hover:text-sky-600">Privacy</a></li>
-                <li><a href="#" className="hover:text-sky-600">Terms</a></li>
-                <li><a href="#" className="hover:text-sky-600">Cookies</a></li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="pt-8 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-slate-500">© 2026 FlightPath. All rights reserved.</p>
-            <div className="flex items-center gap-4">
-              <a href="#" className="text-slate-400 hover:text-sky-600"><Mail className="w-5 h-5" /></a>
-              <a href="#" className="text-slate-400 hover:text-sky-600">Twitter</a>
-              <a href="#" className="text-slate-400 hover:text-sky-600">Instagram</a>
-            </div>
           </div>
         </div>
       </footer>
@@ -484,7 +323,7 @@ export default function Home() {
   );
 }
 
-// Component definitions...
+// Components
 function StepCard({ number, icon, title, description }: { number: string; icon: React.ReactNode; title: string; description: string }) {
   return (
     <div className="text-center">
@@ -494,184 +333,34 @@ function StepCard({ number, icon, title, description }: { number: string; icon: 
       <div className="w-8 h-8 bg-sky-500 text-white rounded-full flex items-center justify-center mx-auto -mt-12 mb-4 text-sm font-bold border-4 border-white">
         {number}
       </div>
-      <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
+      <h3 className="font-semibold text-slate-900 mb-1">{title}</h3>
       <p className="text-slate-600 text-sm">{description}</p>
     </div>
   );
 }
 
-function SavingCard({ amount, percent, route, classType }: { amount: string; percent: string; route: string; classType: string }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <p className="text-2xl font-bold text-green-600">{amount} Saved</p>
-          <p className="text-sm text-slate-500">{percent} off original price</p>
-        </div>
-        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">{classType}</span>
-      </div>
-      <div className="border-t border-slate-100 pt-4">
-        <p className="font-semibold text-slate-900">{route}</p>
-      </div>
-    </div>
-  );
-}
-
-function FaqItem({ id, question, answer, isOpen, onToggle }: { id: string; question: string; answer: string; isOpen: boolean; onToggle: () => void }) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
-      >
-        <span className="font-semibold text-slate-900">{question}</span>
-        <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-      {isOpen && (
-        <div className="px-6 pb-4">
-          <p className="text-slate-600">{answer}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FeatureCard({ title, description, icon }: { title: string; description: string; icon: string }) {
+function StrategyCard({ icon, title, description, savings }: { icon: string; title: string; description: string; savings: string }) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
       <div className="text-4xl mb-4">{icon}</div>
+      <div className="inline-block bg-green-100 text-green-700 text-xs font-semibold px-2 py-1 rounded-full mb-3">
+        Save {savings}
+      </div>
       <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
       <p className="text-slate-600 text-sm leading-relaxed">{description}</p>
     </div>
   );
 }
 
-function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (flight: any) => void }) {
-  // ... (keep existing ResultsDisplay code)
+function ResultsDisplay({ result, onBookClick, user }: { result: any; onBookClick: () => void; user: any }) {
   if (!result || result.error) {
     return <div className="p-4 bg-red-50 rounded-lg text-red-700">{result?.error || "Error"}</div>;
   }
 
   const bestOption = result.bestOption;
-  const optimizedOptions = result.optimizedOptions || [];
-  const standardOption = result.standardOption;
+  const allOptions = [bestOption, ...(result.optimizedOptions || []), result.standardOption].filter(Boolean);
   
-  const totalPassengers = (result.searchParams?.adults || 1) + (result.searchParams?.children || 0) + (result.searchParams?.infants || 0);
-  
-  return (
-    <div className="space-y-6">
-      {/* Data Source Indicator */}
-      {result._dataSource === "sample-data" ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm text-amber-800 font-medium">Demo data - Add Amadeus API for real prices</p>
-            <p className="text-xs text-amber-700 mt-1">
-              Showing sample prices for demonstration
-            </p>
-          </div>
-        </div>
-      ) : result._realTimeData ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
-          <Check className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm text-green-800 font-medium">✓ Real-time prices from Amadeus</p>
-            <p className="text-xs text-green-700 mt-1">
-              Live flight data from airlines • Prices may change
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Summary Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Route</p>
-            <p className="font-semibold text-slate-900 text-lg">
-              {result.searchParams?.origin} → {result.searchParams?.destination}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Passengers</p>
-            <p className="font-semibold text-slate-900 text-lg">{totalPassengers} traveller{totalPassengers > 1 ? "s" : ""}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Class</p>
-            <p className="font-semibold text-slate-900 text-lg capitalize">{result.searchParams?.travelClass?.replace('_', ' ').toLowerCase()}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Price Range</p>
-            <p className="font-semibold text-slate-900 text-lg">
-              {result.priceRange?.currency} {result.priceRange?.min} - {result.priceRange?.max}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Best Deal Banner */}
-      {bestOption?.savingsVsStandard > 0 && (
-        <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-5 text-white shadow-lg shadow-green-500/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-bold text-xl">Best deal: Save {result.priceRange?.currency} {bestOption.savingsVsStandard}</p>
-                <p className="text-green-100">{bestOption.strategy} • {bestOption.strategyDescription}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-4xl font-bold">{result.priceRange?.currency} {bestOption.totalPrice}</p>
-              <p className="text-green-100 text-sm">{bestOption.perPersonPrice} per person</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Best Option Card */}
-      <FlightOptionCard option={bestOption} isBest={true} totalPassengers={totalPassengers} onBookClick={onBookClick} />
-
-      {/* Other Options */}
-      {optimizedOptions.length > 0 && (
-        <>
-          <h3 className="font-semibold text-slate-900 mt-8 mb-4 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-500" />
-            Other ways to save
-          </h3>
-          {optimizedOptions.map((opt: any, i: number) => (
-            <FlightOptionCard key={i} option={opt} isBest={false} totalPassengers={totalPassengers} onBookClick={onBookClick} />
-          ))}
-        </>
-      )}
-
-      {/* Standard Option */}
-      {standardOption && bestOption?.id !== standardOption?.id && (
-        <>
-          <h3 className="font-semibold text-slate-900 mt-8 mb-4">Standard option</h3>
-          <FlightOptionCard option={standardOption} isBest={false} totalPassengers={totalPassengers} onBookClick={onBookClick} />
-        </>
-      )}
-    </div>
-  );
-}
-
-function FlightOptionCard({ 
-  option, 
-  isBest, 
-  totalPassengers, 
-  onBookClick 
-}: { 
-  option: any; 
-  isBest: boolean; 
-  totalPassengers: number;
-  onBookClick: (flight: any) => void;
-}) {
-  if (!option) return null;
-
   const formatTime = (iso: string) => iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-  const formatDate = (iso: string) => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   const formatDuration = (minutes: number) => {
     if (!minutes) return '';
     const h = Math.floor(minutes / 60);
@@ -680,161 +369,114 @@ function FlightOptionCard({
   };
 
   return (
-    <div className={`bg-white rounded-xl shadow-lg overflow-hidden mb-4 ${isBest ? 'ring-2 ring-green-500' : 'border border-slate-200'}`}>
-      {isBest && (
-        <div className="bg-green-50 px-5 py-3 border-b border-green-100 flex items-center justify-between">
-          <span className="font-semibold text-green-800 flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            {option.strategy}
-          </span>
-          <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">Recommended</span>
-        </div>
-      )}
-
-      <div className="p-5">
-        {/* Header */}
-        <div className="flex justify-between items-start mb-5">
+    <div className="space-y-6 pb-20">
+      {/* Results Header */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            {!isBest && <p className="font-semibold text-slate-900 text-lg">{option.strategy}</p>}
-            <p className="text-slate-500">{option.strategyDescription}</p>
+            <p className="text-xs font-medium text-slate-500 uppercase">Route</p>
+            <p className="font-bold text-slate-900 text-lg">{result.searchParams?.origin} → {result.searchParams?.destination}</p>
           </div>
           <div className="text-right">
-            <p className="text-3xl font-bold text-slate-900">{option.currency} {option.totalPrice}</p>
-            <p className="text-sm text-slate-500">{option.perPersonPrice} per person</p>
-            {option.savingsVsStandard > 0 && (
-              <p className="text-sm text-green-600 font-semibold flex items-center gap-1 justify-end">
-                <ArrowRight className="w-4 h-4" />
-                Save {option.currency} {option.savingsVsStandard}
-              </p>
-            )}
+            <p className="text-xs font-medium text-slate-500 uppercase">Best Price</p>
+            <p className="font-bold text-green-600 text-2xl">{result.priceRange?.currency} {result.priceRange?.min}</p>
           </div>
         </div>
+      </div>
 
-        {/* Detailed Segments */}
-        {option.segments?.map((segment: any, idx: number) => (
-          <div key={idx} className="bg-slate-50 rounded-xl p-4 mb-4">
-            {/* Segment Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-white bg-sky-500 px-2 py-1 rounded">
-                  {idx === 0 ? 'OUTBOUND' : 'RETURN'}
-                </span>
-                <span className="text-sm text-slate-500">
-                  {formatDate(segment.departureTime)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-slate-700">{segment.airlineName}</span>
-                <span className="text-sm text-slate-400">{segment.flightNumber}</span>
-              </div>
-            </div>
-            
-            {/* Flight Timeline */}
-            <div className="flex items-center gap-4">
-              {/* Departure */}
-              <div className="text-center min-w-[80px]">
-                <p className="text-2xl font-bold text-slate-900">{formatTime(segment.departureTime)}</p>
-                <p className="text-lg font-semibold text-slate-700">{segment.origin?.code}</p>
-              </div>
-              
-              {/* Duration Line */}
-              <div className="flex-1 flex flex-col items-center">
-                <div className="w-full flex items-center gap-2">
-                  <div className="flex-1 h-0.5 bg-slate-300"></div>
-                  <Plane className="w-5 h-5 text-slate-400" />
-                  <div className="flex-1 h-0.5 bg-slate-300"></div>
-                </div>
-                <p className="text-sm font-medium text-slate-500 mt-1">
-                  {segment.stops === 0 ? 'Direct' : `${segment.stops} stop${segment.stops > 1 ? 's' : ''}`}
-                </p>
-                <p className="text-xs text-slate-400">
-                  {formatDuration(segment.durationMinutes)}
-                </p>
-              </div>
-              
-              {/* Arrival */}
-              <div className="text-center min-w-[80px]">
-                <p className="text-2xl font-bold text-slate-900">{formatTime(segment.arrivalTime)}</p>
-                <p className="text-lg font-semibold text-slate-700">{segment.destination?.code}</p>
-              </div>
-            </div>
-            
-            {/* Aircraft Info */}
-            {segment.aircraft && (
-              <div className="mt-3 pt-3 border-t border-slate-200 flex items-center gap-4 text-sm text-slate-500">
-                <span>Aircraft: {segment.aircraft}</span>
-                <span>Class: {segment.cabinClass}</span>
+      {/* Strategy Explanation */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-blue-900">How we found these savings</p>
+            <p className="text-blue-700 text-sm mt-1">
+              We analyzed {allOptions.length} different booking strategies including split tickets, 
+              nearby airports, and flexible dates. The best option saves you {result.priceRange?.currency} {bestOption.savingsVsStandard || 0} 
+              compared to standard booking.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Flight Options */}
+      <div className="space-y-4">
+        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+          <Route className="w-5 h-5 text-sky-500" />
+          All Options ({allOptions.length} found)
+        </h3>
+        
+        {allOptions.map((option: any, idx: number) => (
+          <div key={idx} className={`bg-white rounded-xl shadow-md overflow-hidden ${idx === 0 ? 'ring-2 ring-green-500' : 'border border-slate-200'}`}>
+            {idx === 0 && (
+              <div className="bg-green-50 px-4 py-2 border-b border-green-100 flex items-center justify-between">
+                <span className="font-semibold text-green-800 text-sm">⭐ Best Deal - Save {option.currency} {option.savingsVsStandard || 0}</span>
+                <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded">{option.strategy}</span>
               </div>
             )}
-          </div>
-        ))}
-
-        {/* Risks */}
-        {option.risks?.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800">Important to know</p>
-                <ul className="text-sm text-amber-700 mt-2 space-y-1">
-                  {option.risks.map((risk: string, i: number) => <li key={i}>• {risk}</li>)}
-                </ul>
-              </div>
-            </div>          </div>
-        )}
-
-        {/* Booking Section with Paywall */}
-        <div className="mt-6 pt-6 border-t border-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-semibold text-slate-700">Book this flight</p>
-              <p className="text-xs text-slate-500">Compare prices across {option.bookingLinks?.length || 0} providers</p>
-            </div>            <div className="flex items-center gap-2 text-amber-600">
-              <Lock className="w-4 h-4" />
-              <span className="text-sm font-medium">Login to book</span>
-            </div>
-          </div>
-          
-          {/* Blurred Booking Options */}
-          <div className="relative">
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 blur-sm pointer-events-none">
-              {option.bookingLinks?.slice(0, 3).map((link: any, i: number) => (
-                <div
-                  key={i}
-                  className={`flex items-center justify-between p-4 rounded-xl border-2 ${
-                    i === 0 && isBest
-                      ? 'bg-sky-500 text-white border-sky-500' 
-                      : 'bg-white text-slate-700 border-slate-200'
-                  }`}
-                >
-                  <span className="font-semibold truncate">{link.airline}</span>
-                  <span className="font-bold">{option.currency} {link.price}</span>
+            
+            <div className="p-4">
+              {/* Price Header */}
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <p className="font-semibold text-slate-900">{option.strategyDescription}</p>
+                  <p className="text-sm text-slate-500">{option.segments?.length} segment{option.segments?.length !== 1 ? 's' : ''}</p>
                 </div>
-              ))}
-            </div>            
-            {/* Unlock Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-slate-900">{option.currency} {option.totalPrice}</p>
+                  <p className="text-sm text-slate-500">per person</p>
+                </div>
+              </div>
+
+              {/* Flight Details */}
+              <div className="space-y-3 mb-4">
+                {option.segments?.map((segment: any, segIdx: number) => (
+                  <div key={segIdx} className="bg-slate-50 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-sky-600 bg-sky-100 px-2 py-0.5 rounded">
+                        {segIdx === 0 ? 'OUTBOUND' : 'RETURN'}
+                      </span>
+                      <span className="text-sm text-slate-600">{segment.airlineName} {segment.flightNumber}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="text-center">
+                        <p className="text-xl font-bold">{formatTime(segment.departureTime)}</p>
+                        <p className="text-sm text-slate-600">{segment.origin?.code}</p>
+                      </div>
+                      
+                      <div className="flex-1 flex flex-col items-center">
+                        <div className="w-full flex items-center gap-1">
+                          <div className="flex-1 h-0.5 bg-slate-300"></div>
+                          <Plane className="w-4 h-4 text-slate-400" />
+                          <div className="flex-1 h-0.5 bg-slate-300"></div>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">{formatDuration(segment.durationMinutes)}</p>
+                      </div>
+                      
+                      <div className="text-center">
+                        <p className="text-xl font-bold">{formatTime(segment.arrivalTime)}</p>
+                        <p className="text-sm text-slate-600">{segment.destination?.code}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Book Button */}
               <button
-                onClick={() => onBookClick({
-                  airline: option.airlineName || option.airline,
-                  flightNumber: option.segments?.[0]?.flightNumber,
-                  origin: option.segments?.[0]?.origin?.code,
-                  destination: option.segments?.[0]?.destination?.code,
-                  price: option.totalPrice,
-                  currency: option.currency,
-                })}
-                className="bg-slate-900 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-slate-800 transition-colors shadow-lg"
+                onClick={onBookClick}
+                className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors flex items-center justify-center gap-2"
               >
-                <Lock className="w-4 h-4" />
-                Unlock to Book
+                {user ? (
+                  <>View Booking Options <ArrowRight className="w-4 h-4" /></>
+                ) : (
+                  <><Lock className="w-4 h-4" /> Sign Up to Book</>
+                )}
               </button>
             </div>
-          </div>          
-          <p className="text-center text-sm text-slate-500 mt-4">
-            <span className="text-amber-600 font-medium">5 free searches</span> when you sign up • 
-            <a href="#" className="text-sky-600 hover:underline">Learn more</a>
-          </p>
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );
