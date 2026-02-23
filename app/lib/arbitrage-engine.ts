@@ -10,6 +10,7 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 // Rate limiting
 let apiCallsThisMonth = 0;
 const MAX_API_CALLS = 1800; // Leave buffer below 2,000 limit
+const RATE_LIMIT_DELAY = 200; // ms between calls to avoid 429 errors
 
 interface ArbitrageResult {
   strategy: string;
@@ -204,7 +205,12 @@ async function searchWithCache(params: AmadeusSearchParams, strategy: string): P
   
   // Make API call
   try {
+    apiCallsThisMonth++;
     const offers = await searchAmadeusFlights(params);
+    
+    // Rate limit delay
+    await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+    
     const transformed = transformAmadeusResults(offers, params);
     
     // Cache result
