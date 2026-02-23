@@ -83,13 +83,9 @@ export default function Home() {
   };
 
   const handleBookClick = () => {
-    if (!user) {
-      setShowAuthModal(true);
-    } else {
-      // User is logged in, show booking options
-      // This would normally show the actual booking links
-      alert('Booking links would show here for logged in users!');
-    }
+    // For testing: show booking links directly without auth
+    // TODO: Re-enable auth check after testing
+    alert('Booking links would show here! (Auth disabled for testing)');
   };
 
   const toggleFaq = (id: string) => {

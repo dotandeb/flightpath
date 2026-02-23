@@ -226,8 +226,20 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
   const [travelClass, setTravelClass] = useState<SearchParams["travelClass"]>("ECONOMY");
   const [tripType, setTripType] = useState<"return" | "oneWay">("return");
   const [showPassengerDropdown, setShowPassengerDropdown] = useState(false);
+  const passengerDropdownRef = useRef<HTMLDivElement>(null);
 
   const totalPassengers = adults + children + infants;
+
+  // Close passenger dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (passengerDropdownRef.current && !passengerDropdownRef.current.contains(event.target as Node)) {
+        setShowPassengerDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -355,7 +367,7 @@ export function SearchForm({ onSearch, loading }: SearchFormProps) {
 
       {/* Passengers & Class */}
       <div className="grid md:grid-cols-2 gap-3">
-        <div className="relative">
+        <div className="relative" ref={passengerDropdownRef}>
           <button
             type="button"
             onClick={() => setShowPassengerDropdown(!showPassengerDropdown)}
