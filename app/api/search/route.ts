@@ -12,21 +12,22 @@ import {
   generateSampleDataResults,
 } from "@/app/lib/travelpayouts-data-api";
 import { getSampleDeals } from "@/app/lib/deal-scraper";
+import { getAllRSSDeals, getDealsForRoute } from "@/app/lib/rss-scraper";
 
 // ============================================
-// FLIGHT SEARCH API - DEALS + ARBITRAGE VERSION
+// FLIGHT SEARCH API - RSS DEALS + ARBITRAGE
 // ============================================
-// Combines:
-// 1. Deal site scraping (SecretFlying, Fly4Free, etc.)
-// 2. Amadeus API for real-time prices
-// 3. Real arbitrage strategies
+// 1. Fetches real deals from RSS (SecretFlying, Fly4Free, HolidayPirates)
+// 2. Runs arbitrage strategies on deals
+// 3. Falls back to Amadeus if env vars set
+// 4. Final fallback to sample data
 
 const USE_AMADEUS = process.env.USE_AMADEUS === "true";
 const USE_ARBITRAGE = process.env.USE_ARBITRAGE !== "false";
 
 /**
  * POST /api/search
- * Main search endpoint with DEALS + ARBITRAGE
+ * Main search with RSS deals + arbitrage
  */
 export async function POST(request: NextRequest) {
   try {
@@ -40,42 +41,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Try Amadeus arbitrage first (if enabled and env vars set)
-    if (USE_AMADEUS && USE_ARBITRAGE) {
-      try {
-        console.log("[Search] Starting REAL arbitrage search...");
-        
-        const arbitrageResult = await searchAllStrategies({
-          origin: params.origin,
-          destination: params.destination,
-          departureDate: params.departureDate,
-          returnDate: params.returnDate,
-          adults: params.adults || 1,
-          children: params.children || 0,
-          infants: params.infants || 0,
-          travelClass: params.travelClass,
-          currency: params.currency || "GBP",
-        });
-
-        // If we got real results, return them
-        if (arbitrageResult.allOptions && arbitrageResult.allOptions.length > 0) {
-          return NextResponse.json({
-            ...arbitrageResult,
-            searchParams: params,
-            _dataSource: "amadeus-arbitrage",
-            _realTimeData: true,
-          });
-        }
-      } catch (arbitrageError: any) {
-        console.log("[Search] Arbitrage search failed:", arbitrageError.message);
-      }
+    // 1. Try RSS deal sites first (real deals)
+    console.log("[Search] Fetching RSS deals...");
+    let rssDeals: any[] = [];
+    
+    try {
+      rssDeals = await getDealsForRoute(params.origin, params.destination);
+      console.log(`[Search] Found ${rssDeals.length} RSS deals`);
+    } catch (rssError) {
+      console.log("[Search] RSS fetch failed, using sample deals");
     }
 
-    // 2. Fallback: Get deals from deal sites + run arbitrage on them
-    console.log("[Search] Falling back to deal sites + arbitrage...");
-    
-    // Get sample deals for this route (in production, scrape real sites)
-    const deals = getSampleDeals().filter(d => 
+    // If no RSS deals, use sample deals
+    const deals = rssDeals.length > 0 ? rssDeals : getSampleDeals().filter(d => 
       d.from === params.origin || 
       d.to === params.destination ||
       d.route.toLowerCase().includes(params.origin.toLowerCase()) ||
@@ -83,22 +61,22 @@ export async function POST(request: NextRequest) {
     );
 
     if (deals.length > 0) {
-      // Transform deals to match our format
+      // Transform deals to our format
       const dealOptions = deals.map(deal => ({
         id: `deal-${deal.source}-${Date.now()}`,
-        strategy: "deal-site",
-        strategyDescription: `Found on ${deal.source}`,
+        strategy: "rss-deal",
+        strategyDescription: `${deal.source}: ${deal.route} ${deal.currency}${deal.price}`,
         totalPrice: deal.price,
         perPersonPrice: deal.price,
         currency: deal.currency,
         segments: [{
           id: `deal-segment-1`,
-          origin: { code: deal.from, name: "", city: "", country: "", lat: 0, lng: 0 },
-          destination: { code: deal.to, name: "", city: "", country: "", lat: 0, lng: 0 },
+          origin: { code: deal.fromCode || deal.from, name: "", city: deal.from, country: "", lat: 0, lng: 0 },
+          destination: { code: deal.toCode || deal.to, name: "", city: deal.to, country: "", lat: 0, lng: 0 },
           departureTime: `${params.departureDate}T10:00:00`,
           arrivalTime: `${params.departureDate}T14:00:00`,
           airline: "Various",
-          airlineName: "Deal Airline",
+          airlineName: deal.source,
           flightNumber: "DEAL001",
           duration: "PT4H",
           durationMinutes: 240,
@@ -114,61 +92,84 @@ export async function POST(request: NextRequest) {
         }],
         savingsVsStandard: 0,
         risks: ["Deal may expire quickly", "Verify dates before booking"],
-        _source: "deal-site",
+        _source: "rss-deal",
         _dealUrl: deal.url,
+        _publishedAt: deal.publishedAt,
       }));
 
-      // Try to run arbitrage on the deal
+      // 2. Try Amadeus arbitrage for comparison
       let arbitrageOptions: any[] = [];
       
-      if (USE_AMADEUS) {
+      if (USE_AMADEUS && USE_ARBITRAGE) {
         try {
-          // Search split ticket
-          const outbound = await searchAmadeusFlights({
+          const arbitrageResult = await searchAllStrategies({
             origin: params.origin,
             destination: params.destination,
             departureDate: params.departureDate,
+            returnDate: params.returnDate,
             adults: params.adults || 1,
             currency: params.currency || "GBP",
           });
 
-          if (outbound.length > 0) {
-            const bestPrice = parseFloat(outbound[0].price.total);
-            if (bestPrice < deals[0].price) {
-              arbitrageOptions.push({
-                ...transformAmadeusResults(outbound, params).bestOption,
-                strategy: "amadeus-better-than-deal",
-                strategyDescription: "Better price found via Amadeus vs deal site",
-                savingsVsStandard: deals[0].price - bestPrice,
-              });
-            }
+          if (arbitrageResult.allOptions && arbitrageResult.allOptions.length > 0) {
+            arbitrageOptions = arbitrageResult.allOptions.map((opt: any) => ({
+              ...opt,
+              strategy: `amadeus-${opt.strategy}`,
+            }));
           }
         } catch (e) {
-          console.log("[Search] Amadeus comparison failed");
+          console.log("[Search] Amadeus arbitrage failed");
         }
       }
 
+      // Combine and sort
       const allOptions = [...dealOptions, ...arbitrageOptions];
       allOptions.sort((a, b) => a.totalPrice - b.totalPrice);
 
+      const bestOption = allOptions[0];
+      const standardOption = dealOptions[0];
+
       return NextResponse.json({
-        standardOption: dealOptions[0],
-        bestOption: allOptions[0],
+        standardOption,
+        bestOption,
         allOptions,
-        optimizedOptions: allOptions.slice(1),
+        optimizedOptions: allOptions.filter(o => o !== bestOption),
         priceRange: {
           min: Math.min(...allOptions.map(o => o.totalPrice)),
           max: Math.max(...allOptions.map(o => o.totalPrice)),
           currency: params.currency || "GBP",
         },
         searchParams: params,
-        _dataSource: "deal-sites",
-        _realTimeData: false,
-        _cacheWarning: "Prices from deal sites - verify before booking",
+        _dataSource: rssDeals.length > 0 ? "rss-deals" : "sample-deals",
+        _realTimeData: rssDeals.length > 0,
+        _cacheWarning: rssDeals.length > 0 ? null : "Using sample deals - RSS may be unavailable",
       });
     }
 
-    // 3. Final fallback to sample data
+    // 3. Fallback to Amadeus only
+    if (USE_AMADEUS) {
+      try {
+        const arbitrageResult = await searchAllStrategies({
+          origin: params.origin,
+          destination: params.destination,
+          departureDate: params.departureDate,
+          returnDate: params.returnDate,
+          adults: params.adults || 1,
+          currency: params.currency || "GBP",
+        });
+
+        return NextResponse.json({
+          ...arbitrageResult,
+          searchParams: params,
+          _dataSource: "amadeus-arbitrage",
+          _realTimeData: true,
+        });
+      } catch (e) {
+        console.log("[Search] Amadeus fallback failed");
+      }
+    }
+
+    // 4. Final fallback to sample data
     console.log("[Search] Using sample data fallback");
     const sampleResult = generateSampleDataResults(params);
     
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
       ...sampleResult,
       searchParams: params,
       _dataSource: "sample-data",
-      _cacheWarning: "Demo data - Add Amadeus API for real prices",
+      _cacheWarning: "Demo data - No real deals found",
     });
 
   } catch (error: any) {
