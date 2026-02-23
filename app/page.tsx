@@ -48,15 +48,9 @@ export default function Home() {
       setSearchesRemaining(remaining - 1);
       await incrementSearchCount(user.id);
     } else {
-      // Allow 1 search without signup (teaser) - only in browser
-      if (typeof window !== 'undefined') {
-        const teaserUsed = sessionStorage.getItem('flightpath_teaser');
-        if (teaserUsed) {
-          setShowAuthModal(true);
-          return;
-        }
-        sessionStorage.setItem('flightpath_teaser', 'used');
-      }
+      // Allow unlimited searches without signup for testing
+      // Original: 1 search teaser, then require signup
+      // TODO: Re-enable paywall after testing
     }
 
     setLoading(true);
