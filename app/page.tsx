@@ -247,6 +247,15 @@ export default function Home() {
               onBookClick={handleBookClick}
               user={user}
             />
+            
+            {/* Search Metadata */}
+            {results.searchMetadata && (
+              <div className="mt-4 p-3 bg-slate-100 rounded-lg text-xs text-slate-600">
+                <p className="font-medium">Search Details:</p>
+                <p>Strategies: {results.searchMetadata.strategiesSearched?.join(', ')}</p>
+                <p>API calls: {results.searchMetadata.totalApiCalls} | Cache hits: {results.searchMetadata.cacheHits}</p>
+              </div>
+            )}
           </div>
         )}
       </div>
