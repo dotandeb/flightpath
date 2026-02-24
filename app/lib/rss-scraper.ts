@@ -714,7 +714,7 @@ export async function getAllRSSDeals(): Promise<ParsedDeal[]> {
 }
 
 /**
- * Get deals for specific route
+ * Get deals for specific route - STRICT filtering
  */
 export async function getDealsForRoute(
   origin: string, 
@@ -722,10 +722,22 @@ export async function getDealsForRoute(
 ): Promise<ParsedDeal[]> {
   const allDeals = await getAllRSSDeals();
   
-  return allDeals.filter(deal => 
-    (deal.fromCode === origin || deal.from.toLowerCase().includes(origin.toLowerCase())) &&
-    (deal.toCode === destination || deal.to.toLowerCase().includes(destination.toLowerCase()))
-  );
+  // STRICT filtering - only exact matches
+  const filteredDeals = allDeals.filter(deal => {
+    // Must match origin exactly
+    const originMatch = deal.fromCode === origin || 
+                        deal.from.toUpperCase() === origin;
+    
+    // Must match destination exactly
+    const destMatch = deal.toCode === destination || 
+                      deal.to.toUpperCase() === destination;
+    
+    return originMatch && destMatch;
+  });
+  
+  console.log(`[RSS] Filtered ${filteredDeals.length} deals for ${origin}→${destination} from ${allDeals.length} total`);
+  
+  return filteredDeals;
 }
 
 /**

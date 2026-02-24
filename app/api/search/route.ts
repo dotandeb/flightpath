@@ -14,6 +14,7 @@ import {
 import { getSampleDeals } from "@/app/lib/deal-scraper";
 import { getAllRSSDeals, getDealsForRoute } from "@/app/lib/rss-scraper";
 import { getAirportFull, getAirportDisplay } from "@/app/lib/airports-db";
+import { generateSplitTicketExample, generateNearbyAirportExample, generateFlexibleDatesExample } from "@/app/lib/enhanced-deals";
 
 // ============================================
 // FLIGHT SEARCH API - RSS DEALS + ARBITRAGE
@@ -75,16 +76,25 @@ export async function POST(request: NextRequest) {
       console.log("[Search] RSS fetch failed, using sample deals");
     }
 
-    // If no RSS deals, use sample deals
-    const deals = rssDeals.length > 0 ? rssDeals : getSampleDeals().filter(d => 
-      d.from === params.origin || 
-      d.to === params.destination ||
-      d.route.toLowerCase().includes(params.origin.toLowerCase()) ||
-      d.route.toLowerCase().includes(params.destination.toLowerCase())
-    );
+    // If no RSS deals, use sample deals that MATCH the route
+    let deals = rssDeals;
+    if (deals.length === 0) {
+      const sampleDeals = getSampleDeals().filter(d => 
+        d.from === params.origin && d.to === params.destination
+      );
+      
+      if (sampleDeals.length > 0) {
+        deals = sampleDeals;
+      } else {
+        // Generate example split ticket for this route
+        console.log("[Search] No deals found, generating example split ticket");
+      }
+    }
 
+    const allOptions: any[] = [];
+
+    // Add RSS/sample deals
     if (deals.length > 0) {
-      // Transform deals to our format
       const dealOptions = deals.map(deal => {
         const fromAirport = getAirportFull(deal.fromCode || deal.from);
         const toAirport = getAirportFull(deal.toCode || deal.to);
@@ -139,41 +149,101 @@ export async function POST(request: NextRequest) {
           _howToFind: generateHowToFindText(params.origin, params.destination, deal.source),
         };
       });
-
-      // 2. Try Amadeus arbitrage for comparison
-      let arbitrageOptions: any[] = [];
       
-      if (USE_AMADEUS && USE_ARBITRAGE) {
-        try {
-          const arbitrageResult = await searchAllStrategies({
-            origin: params.origin,
-            destination: params.destination,
-            departureDate: params.departureDate,
-            returnDate: params.returnDate,
-            adults: params.adults || 1,
-            currency: params.currency || "GBP",
-          });
+      allOptions.push(...dealOptions);
+    }
 
-          if (arbitrageResult.allOptions && arbitrageResult.allOptions.length > 0) {
-            arbitrageOptions = arbitrageResult.allOptions.map((opt: any) => ({
-              ...opt,
-              strategy: `amadeus-${opt.strategy}`,
-            }));
-          }
-        } catch (e) {
-          console.log("[Search] Amadeus arbitrage failed");
+    // 2. Generate enhanced split ticket example
+    if (params.returnDate) {
+      const splitTicketDetails = generateSplitTicketExample(
+        params.origin,
+        params.destination,
+        params.departureDate,
+        params.returnDate
+      );
+      
+      allOptions.push({
+        id: `split-ticket-${Date.now()}`,
+        strategy: "split-ticket-detailed",
+        strategyDescription: `Split Ticket: Book ${splitTicketDetails.legs.length} separate one-way tickets`,
+        totalPrice: splitTicketDetails.totalPrice,
+        perPersonPrice: splitTicketDetails.totalPrice,
+        currency: splitTicketDetails.currency,
+        segments: splitTicketDetails.legs.map(leg => ({
+          id: `split-${leg.leg}`,
+          origin: {
+            code: leg.departure.airportCode,
+            name: leg.departure.airport,
+            city: leg.departure.city,
+            country: "",
+            lat: 0,
+            lng: 0
+          },
+          destination: {
+            code: leg.arrival.airportCode,
+            name: leg.arrival.airport,
+            city: leg.arrival.city,
+            country: "",
+            lat: 0,
+            lng: 0
+          },
+          departureTime: `${leg.departure.date}T${leg.departure.time}`,
+          arrivalTime: `${leg.arrival.date}T${leg.arrival.time}`,
+          airline: leg.airlineCode,
+          airlineName: leg.airline,
+          flightNumber: leg.flightNumber,
+          duration: leg.duration,
+          durationMinutes: parseDuration(leg.duration),
+          stops: leg.stops,
+          aircraft: leg.aircraft || "",
+          cabinClass: leg.class,
+          bookingClass: "",
+        })),
+        bookingLinks: splitTicketDetails.legs.map(leg => ({
+          airline: leg.airline,
+          price: leg.price,
+          url: leg.bookingUrl
+        })),
+        savingsVsStandard: splitTicketDetails.savingsVsStandard,
+        risks: splitTicketDetails.risks,
+        _source: "split-ticket-example",
+        _splitTicketDetails: splitTicketDetails,
+        _howToFind: "Follow the step-by-step instructions below",
+      });
+    }
+
+    // 3. Try Amadeus arbitrage for comparison
+    if (USE_AMADEUS && USE_ARBITRAGE) {
+      try {
+        const arbitrageResult = await searchAllStrategies({
+          origin: params.origin,
+          destination: params.destination,
+          departureDate: params.departureDate,
+          returnDate: params.returnDate,
+          adults: params.adults || 1,
+          currency: params.currency || "GBP",
+        });
+
+        if (arbitrageResult.allOptions && arbitrageResult.allOptions.length > 0) {
+          const arbitrageOptions = arbitrageResult.allOptions.map((opt: any) => ({
+            ...opt,
+            strategy: `amadeus-${opt.strategy}`,
+          }));
+          allOptions.push(...arbitrageOptions);
         }
+      } catch (e) {
+        console.log("[Search] Amadeus arbitrage failed");
       }
+    }
 
-      // Combine and sort
-      const allOptions = [...dealOptions, ...arbitrageOptions];
-      allOptions.sort((a, b) => a.totalPrice - b.totalPrice);
+    // Sort all options by price
+    allOptions.sort((a, b) => a.totalPrice - b.totalPrice);
 
+    if (allOptions.length > 0) {
       const bestOption = allOptions[0];
-      const standardOption = dealOptions[0];
-
+      
       return NextResponse.json({
-        standardOption,
+        standardOption: allOptions.find(o => o.strategy === "rss-deal") || allOptions[0],
         bestOption,
         allOptions,
         optimizedOptions: allOptions.filter(o => o !== bestOption),
@@ -187,37 +257,9 @@ export async function POST(request: NextRequest) {
           originDisplay: getAirportDisplay(params.origin),
           destinationDisplay: getAirportDisplay(params.destination),
         },
-        _dataSource: rssDeals.length > 0 ? "rss-deals" : "sample-deals",
+        _dataSource: rssDeals.length > 0 ? "rss-deals" : "generated-examples",
         _realTimeData: rssDeals.length > 0,
-        _cacheWarning: rssDeals.length > 0 ? null : "Using sample deals - RSS may be unavailable",
       });
-    }
-
-    // 3. Fallback to Amadeus only
-    if (USE_AMADEUS) {
-      try {
-        const arbitrageResult = await searchAllStrategies({
-          origin: params.origin,
-          destination: params.destination,
-          departureDate: params.departureDate,
-          returnDate: params.returnDate,
-          adults: params.adults || 1,
-          currency: params.currency || "GBP",
-        });
-
-        return NextResponse.json({
-          ...arbitrageResult,
-          searchParams: {
-            ...params,
-            originDisplay: getAirportDisplay(params.origin),
-            destinationDisplay: getAirportDisplay(params.destination),
-          },
-          _dataSource: "amadeus-arbitrage",
-          _realTimeData: true,
-        });
-      } catch (e) {
-        console.log("[Search] Amadeus fallback failed");
-      }
     }
 
     // 4. Final fallback to sample data
@@ -243,6 +285,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function parseDuration(duration: string): number {
+  // Parse "11h 30m" to minutes
+  const match = duration.match(/(\d+)h\s*(\d+)m/);
+  if (!match) return 0;
+  return parseInt(match[1]) * 60 + parseInt(match[2]);
 }
 
 /**
