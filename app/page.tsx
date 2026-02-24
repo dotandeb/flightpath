@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchForm, SearchParams } from './components/SearchForm';
-import { Plane, Check, ArrowRight, AlertTriangle, Sparkles, Shield, Zap, Globe, Lock, X, ChevronDown, Mail, Search, Bell, Wallet, Info, Route, Ticket, MapPin } from 'lucide-react';
+import { Plane, Check, ArrowRight, AlertTriangle, Sparkles, Shield, Zap, Globe, Lock, X, ChevronDown, Mail, Search, Bell, Wallet, Info, Route, Ticket, MapPin, ExternalLink } from 'lucide-react';
 import { getCurrentUser, canUserSearch, incrementSearchCount } from './lib/auth';
 
 export default function Home() {
@@ -82,10 +82,13 @@ export default function Home() {
     }
   };
 
-  const handleBookClick = () => {
-    // For testing: show booking links directly without auth
-    // TODO: Re-enable auth check after testing
-    alert('Booking links would show here! (Auth disabled for testing)');
+  const handleBookClick = (url?: string) => {
+    // For testing: open deal link directly
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      alert('No booking link available');
+    }
   };
 
   const toggleFaq = (id: string) => {
@@ -111,37 +114,13 @@ export default function Home() {
           </div>
           
           <div className="flex items-center gap-4">
-            {user ? (
-              <>
-                <div className="hidden sm:flex items-center gap-2 text-sm">
-                  <span className="text-slate-500">{user.is_admin ? 'Unlimited' : `${searchesRemaining} searches left`}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600 hidden sm:inline">{user.email}</span>
-                  <button 
-                    onClick={handleLogout}
-                    className="text-sm text-slate-500 hover:text-slate-700"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <a href="/signin" className="text-sm text-slate-600 hover:text-slate-900">Sign in</a>
-                <a 
-                  href="/signup" 
-                  className="text-sm bg-gradient-to-r from-sky-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors font-medium"
-                >
-                  Get 1 Free Search
-                </a>
-              </>
-            )}
+            {/* Auth buttons hidden for testing */}
+            <span className="text-sm text-slate-500">Testing Mode - No Login Required</span>
           </div>
         </div>
       </header>
 
-      {/* Auth Modal */}
+      {/* Auth Modal - Hidden for testing */}
       {showAuthModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
@@ -153,30 +132,13 @@ export default function Home() {
             </button>
             
             <div className="text-center">
-              <div className="w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-8 h-8 text-sky-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Unlock More Searches</h2>
-              <p className="text-slate-600 mb-6">
-                {user 
-                  ? "You've used your free searches. Upgrade for unlimited access."
-                  : "Sign up to get 1 free flight search and unlock booking links."
-                }
-              </p>
-              
-              <div className="space-y-3">
-                {!user && (
-                  <a
-                    href="/signup"
-                    className="block w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-4 rounded-xl text-center hover:from-sky-600 hover:to-blue-700 transition-colors"
-                  >
-                    Sign Up Free - 1 Search
-                  </a>
-                )}
-                <button className="w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200 transition-colors">
-                  Unlock Unlimited - £4.99
-                </button>
-              </div>
+              <p className="text-slate-600">Auth disabled for testing. Click the deal button to open links.</p>
+              <button
+                onClick={() => setShowAuthModal(false)}
+                className="mt-4 w-full bg-sky-500 text-white py-2 rounded-lg"
+              >
+                Got it
+              </button>
             </div>
           </div>
         </div>
@@ -235,7 +197,6 @@ export default function Home() {
             <ResultsDisplay 
               result={results} 
               onBookClick={handleBookClick}
-              user={user}
             />
             
             {/* Search Metadata */}
@@ -351,7 +312,7 @@ function StrategyCard({ icon, title, description, savings }: { icon: string; tit
   );
 }
 
-function ResultsDisplay({ result, onBookClick, user }: { result: any; onBookClick: () => void; user: any }) {
+function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (url?: string) => void }) {
   if (!result || result.error) {
     return <div className="p-4 bg-red-50 rounded-lg text-red-700">{result?.error || "Error"}</div>;
   }
@@ -390,9 +351,8 @@ function ResultsDisplay({ result, onBookClick, user }: { result: any; onBookClic
           <div>
             <p className="font-semibold text-blue-900">How we found these savings</p>
             <p className="text-blue-700 text-sm mt-1">
-              We analyzed {allOptions.length} different booking strategies including split tickets, 
-              nearby airports, and flexible dates. The best option saves you {result.priceRange?.currency} {bestOption.savingsVsStandard || 0} 
-              compared to standard booking.
+              We analyzed {allOptions.length} different booking strategies including RSS deal feeds, 
+              split tickets, nearby airports, and flexible dates. Data source: {result._dataSource || 'multiple'}.
             </p>
           </div>
         </div>
@@ -405,77 +365,89 @@ function ResultsDisplay({ result, onBookClick, user }: { result: any; onBookClic
           All Options ({allOptions.length} found)
         </h3>
         
-        {allOptions.map((option: any, idx: number) => (
-          <div key={idx} className={`bg-white rounded-xl shadow-md overflow-hidden ${idx === 0 ? 'ring-2 ring-green-500' : 'border border-slate-200'}`}>
-            {idx === 0 && (
-              <div className="bg-green-50 px-4 py-2 border-b border-green-100 flex items-center justify-between">
-                <span className="font-semibold text-green-800 text-sm">⭐ Best Deal - Save {option.currency} {option.savingsVsStandard || 0}</span>
-                <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded">{option.strategy}</span>
-              </div>
-            )}
-            
-            <div className="p-4">
-              {/* Price Header */}
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <p className="font-semibold text-slate-900">{option.strategyDescription}</p>
-                  <p className="text-sm text-slate-500">{option.segments?.length} segment{option.segments?.length !== 1 ? 's' : ''}</p>
+        {allOptions.map((option: any, idx: number) => {
+          // Get booking URL from deal or booking links
+          const bookingUrl = option._dealUrl || option.bookingLinks?.[0]?.url || option.bookingLinks?.[0]?.link;
+          
+          return (
+            <div key={idx} className={`bg-white rounded-xl shadow-md overflow-hidden ${idx === 0 ? 'ring-2 ring-green-500' : 'border border-slate-200'}`}>
+              {idx === 0 && (
+                <div className="bg-green-50 px-4 py-2 border-b border-green-100 flex items-center justify-between">
+                  <span className="font-semibold text-green-800 text-sm">⭐ Best Deal - Save {option.currency} {option.savingsVsStandard || 0}</span>
+                  <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded">{option.strategy}</span>
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-900">{option.currency} {option.totalPrice}</p>
-                  <p className="text-sm text-slate-500">per person</p>
-                </div>
-              </div>
-
-              {/* Flight Details */}
-              <div className="space-y-3 mb-4">
-                {option.segments?.map((segment: any, segIdx: number) => (
-                  <div key={segIdx} className="bg-slate-50 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-sky-600 bg-sky-100 px-2 py-0.5 rounded">
-                        {segIdx === 0 ? 'OUTBOUND' : 'RETURN'}
-                      </span>
-                      <span className="text-sm text-slate-600">{segment.airlineName} {segment.flightNumber}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <div className="text-center">
-                        <p className="text-xl font-bold">{formatTime(segment.departureTime)}</p>
-                        <p className="text-sm text-slate-600">{segment.origin?.code}</p>
-                      </div>
-                      
-                      <div className="flex-1 flex flex-col items-center">
-                        <div className="w-full flex items-center gap-1">
-                          <div className="flex-1 h-0.5 bg-slate-300"></div>
-                          <Plane className="w-4 h-4 text-slate-400" />
-                          <div className="flex-1 h-0.5 bg-slate-300"></div>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">{formatDuration(segment.durationMinutes)}</p>
-                      </div>
-                      
-                      <div className="text-center">
-                        <p className="text-xl font-bold">{formatTime(segment.arrivalTime)}</p>
-                        <p className="text-sm text-slate-600">{segment.destination?.code}</p>
-                      </div>
-                    </div>
+              )}
+              
+              <div className="p-4">
+                {/* Price Header */}
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="font-semibold text-slate-900">{option.strategyDescription}</p>
+                    <p className="text-sm text-slate-500">{option.segments?.length} segment{option.segments?.length !== 1 ? 's' : ''}</p>
+                    {option._source === 'rss-deal' && (
+                      <p className="text-xs text-sky-600 mt-1">📰 From {option.segments?.[0]?.airlineName || 'deal site'}</p>
+                    )}
                   </div>
-                ))}
-              </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-slate-900">{option.currency} {option.totalPrice}</p>
+                    <p className="text-sm text-slate-500">per person</p>
+                  </div>
+                </div>
 
-              {/* Book Button */}
-              <button
-                onClick={onBookClick}
-                className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors flex items-center justify-center gap-2"
-              >
-                {user ? (
-                  <>View Booking Options <ArrowRight className="w-4 h-4" /></>
-                ) : (
-                  <><Lock className="w-4 h-4" /> Sign Up to Book</>
+                {/* Flight Details */}
+                <div className="space-y-3 mb-4">
+                  {option.segments?.map((segment: any, segIdx: number) => (
+                    <div key={segIdx} className="bg-slate-50 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-sky-600 bg-sky-100 px-2 py-0.5 rounded">
+                          {segIdx === 0 ? 'OUTBOUND' : 'RETURN'}
+                        </span>
+                        <span className="text-sm text-slate-600">{segment.airlineName} {segment.flightNumber}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="text-center">
+                          <p className="text-xl font-bold">{formatTime(segment.departureTime)}</p>
+                          <p className="text-sm text-slate-600">{segment.origin?.code}</p>
+                        </div>
+                        
+                        <div className="flex-1 flex flex-col items-center">
+                          <div className="w-full flex items-center gap-1">
+                            <div className="flex-1 h-0.5 bg-slate-300"></div>
+                            <Plane className="w-4 h-4 text-slate-400" />
+                            <div className="flex-1 h-0.5 bg-slate-300"></div>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">{formatDuration(segment.durationMinutes)}</p>
+                        </div>
+                        
+                        <div className="text-center">
+                          <p className="text-xl font-bold">{formatTime(segment.arrivalTime)}</p>
+                          <p className="text-sm text-slate-600">{segment.destination?.code}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Book Button - Direct link to deal */}
+                <button
+                  onClick={() => onBookClick(bookingUrl)}
+                  className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  {bookingUrl ? 'View Deal on ' + (option.segments?.[0]?.airlineName || 'Website') : 'No Link Available'}
+                </button>
+                
+                {/* Show actual URL for transparency */}
+                {bookingUrl && (
+                  <p className="text-xs text-slate-400 mt-2 text-center truncate">
+                    {bookingUrl}
+                  </p>
                 )}
-              </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
