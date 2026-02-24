@@ -335,7 +335,11 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase">Route</p>
-            <p className="font-bold text-slate-900 text-lg">{result.searchParams?.origin} → {result.searchParams?.destination}</p>
+            <p className="font-bold text-slate-900 text-lg">
+              {result.searchParams?.originDisplay || result.searchParams?.origin} 
+              <span className="text-slate-400 mx-2">→</span> 
+              {result.searchParams?.destinationDisplay || result.searchParams?.destination}
+            </p>
           </div>
           <div className="text-right">
             <p className="text-xs font-medium text-slate-500 uppercase">Best Price</p>
@@ -408,7 +412,9 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                       <div className="flex items-center gap-3">
                         <div className="text-center">
                           <p className="text-xl font-bold">{formatTime(segment.departureTime)}</p>
-                          <p className="text-sm text-slate-600">{segment.origin?.code}</p>
+                          <p className="text-sm font-semibold text-slate-800">{segment.origin?.code}</p>
+                          <p className="text-xs text-slate-500">{segment.origin?.name}</p>
+                          <p className="text-xs text-slate-400">{segment.origin?.country}</p>
                         </div>
                         
                         <div className="flex-1 flex flex-col items-center">
@@ -422,7 +428,9 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                         
                         <div className="text-center">
                           <p className="text-xl font-bold">{formatTime(segment.arrivalTime)}</p>
-                          <p className="text-sm text-slate-600">{segment.destination?.code}</p>
+                          <p className="text-sm font-semibold text-slate-800">{segment.destination?.code}</p>
+                          <p className="text-xs text-slate-500">{segment.destination?.name}</p>
+                          <p className="text-xs text-slate-400">{segment.destination?.country}</p>
                         </div>
                       </div>
                     </div>
@@ -443,6 +451,14 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                   <p className="text-xs text-slate-400 mt-2 text-center truncate">
                     {bookingUrl}
                   </p>
+                )}
+                
+                {/* How to find this deal - for broken links */}
+                {option._howToFind && (
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs font-semibold text-amber-800 mb-1">🔗 Link not working?</p>
+                    <p className="text-xs text-amber-700">{option._howToFind}</p>
+                  </div>
                 )}
               </div>
             </div>
