@@ -6,7 +6,7 @@ import { SearchForm, SearchParams } from './components/SearchForm';
 import { SearchProgress } from './components/SearchProgress';
 import { Plane, Check, ArrowRight, AlertTriangle, Sparkles, Shield, Zap, Globe, Lock, X, ChevronDown, Mail, Search, Bell, Wallet, Info, Route, Ticket, MapPin, ExternalLink, BookOpen, Clock, AlertCircle } from 'lucide-react';
 import { getCurrentUser, canUserSearch, incrementSearchCount } from './lib/auth';
-import { generateDealExplanation } from './lib/deal-explanations';
+import { generateSpecificInstructions, getQuickSummary, SpecificDealInstructions } from './lib/deal-explanations';
 
 export default function Home() {
   const router = useRouter();
@@ -102,12 +102,22 @@ export default function Home() {
     }
   };
 
-  const handleBookClick = (url?: string) => {
-    // For testing: open deal link directly
-    if (url) {
+  const handleBookClick = (url?: string, searchParams?: any) => {
+    // For testing: open deal link or Google Flights fallback
+    if (url && !url.includes('fly4free') && !url.includes('rss')) {
+      // Open direct deal links that work
       window.open(url, '_blank');
+    } else if (searchParams) {
+      // Build Google Flights link as reliable fallback
+      const origin = searchParams.origin;
+      const destination = searchParams.destination;
+      const departure = searchParams.departureDate;
+      const return_date = searchParams.returnDate || '';
+      
+      const googleFlightsUrl = `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}%20on%20${departure}%20through%20${return_date}`;
+      window.open(googleFlightsUrl, '_blank');
     } else {
-      alert('No booking link available');
+      alert('Search Google Flights for this route to find current prices');
     }
   };
 
@@ -469,13 +479,15 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                   ))}
                 </div>
 
-                {/* Book Button - Direct link to deal */}
+                {/* Book Button - Direct link or Google Flights fallback */}
                 <button
-                  onClick={() => onBookClick(bookingUrl)}
+                  onClick={() => onBookClick(bookingUrl, result.searchParams)}
                   className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  {bookingUrl ? 'View Deal on ' + (option.segments?.[0]?.airlineName || 'Website') : 'No Link Available'}
+                  {bookingUrl && !bookingUrl.includes('rss') 
+                    ? `View Deal on ${option.segments?.[0]?.airlineName || 'Website'}` 
+                    : 'Search on Google Flights'}
                 </button>
                 
                 {/* Show actual URL for transparency */}
@@ -493,15 +505,15 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                   </div>
                 )}
                 
-                {/* Detailed Deal Explanation */}
+                {/* Detailed Deal Explanation - SPECIFIC INSTRUCTIONS */}
                 {(() => {
-                  const explanation = generateDealExplanation(
+                  const instructions = generateSpecificInstructions(
                     option.segments?.[0]?.origin?.code || 'XXX',
                     option.segments?.[0]?.destination?.code || 'XXX',
+                    result.searchParams?.departureDate || '2025-06-01',
+                    result.searchParams?.returnDate,
                     option.totalPrice,
-                    result.standardOption?.totalPrice || option.totalPrice * 1.2,
-                    option.strategy,
-                    option.segments?.[0]?.airlineName || 'Deal Site'
+                    option.strategy
                   );
                   
                   return (
@@ -513,54 +525,93 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                             details.classList.toggle('hidden');
                           }
                         }}
-                        className="flex items-center gap-2 text-sm text-sky-600 hover:text-sky-700 font-medium"
+                        className="flex items-center gap-2 text-sm text-sky-600 hover:text-sky-700 font-medium w-full justify-between"
                       >
-                        <BookOpen className="w-4 h-4" />
-                        📖 How to recreate this deal step-by-step
+                        <span className="flex items-center gap-2">
+                          <BookOpen className="w-4 h-4" />
+                          📖 EXACT Steps to Book This Deal
+                        </span>
                         <ChevronDown className="w-4 h-4" />
                       </button>
                       
                       <div className="hidden mt-4 bg-slate-50 rounded-lg p-4">
-                        <h4 className="font-semibold text-slate-900 mb-2">{explanation.title}</h4>
-                        <p className="text-sm text-slate-600 mb-4">{explanation.summary}</p>
+                        <!-- Quick Summary -->
+                        <div className="bg-sky-100 p-3 rounded-lg mb-4">
+                          <p className="text-sm font-semibold text-sky-900">{getQuickSummary(instructions)}</p>
+                        </div>
                         
+                        <!-- What to Book -->
                         <div className="mb-4">
-                          <p className="text-xs font-semibold text-slate-700 mb-2">Step-by-step instructions:</p>
-                          <ol className="text-sm text-slate-600 space-y-2">
-                            {explanation.steps.map((step, i) => (
-                              step ? (
-                                <li key={i} className="flex gap-2">
-                                  <span className="font-semibold text-sky-600">{i + 1}.</span>
-                                  <span>{step}</span>
-                                </li>
-                              ) : null
+                          <p className="text-xs font-bold text-slate-800 uppercase mb-2">✈️ What You Need to Book:</p>
+                          {instructions.whatToBook.map((book, i) => (
+                            <div key={i} className="bg-white p-3 rounded-lg mb-2 border border-slate-200">
+                              <p className="text-sm font-bold text-sky-700">{book.leg}: {book.route}</p>
+                              <p className="text-xs text-slate-600">Airline: {book.airline}</p>
+                              <p className="text-xs text-slate-600">Type: {book.flightType}</p>
+                              <p className="text-xs text-green-600 font-semibold">Expected: {book.expectedPrice}</p>
+                              <p className="text-xs text-slate-500">Book at: {book.whereToBook}</p>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <!-- Step by Step -->
+                        <div className="mb-4">
+                          <p className="text-xs font-bold text-slate-800 uppercase mb-2">📝 EXACT Steps (Do in this order):</p>
+                          <ol className="space-y-3">
+                            {instructions.exactSteps.map((step, i) => (
+                              <li key={i} className="bg-white p-3 rounded-lg border border-slate-200">
+                                <div className="flex gap-3">
+                                  <span className="flex-shrink-0 w-6 h-6 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{step.step}</span>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold text-slate-900">{step.action}</p>
+                                    <p className="text-xs text-slate-600 mt-1">{step.details}</p>
+                                    {step.website && (
+                                      <p className="text-xs text-sky-600 mt-1">🌐 {step.website}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </li>
                             ))}
                           </ol>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div className="bg-white p-3 rounded-lg">
-                            <p className="text-xs text-slate-500 mb-1">Difficulty</p>
-                            <p className="text-sm font-semibold text-slate-900">{explanation.difficulty}</p>
-                          </div>
-                          <div className="bg-white p-3 rounded-lg">
-                            <p className="text-xs text-slate-500 mb-1">Time Required</p>
-                            <p className="text-sm font-semibold text-slate-900">{explanation.timeRequired}</p>
-                          </div>
+                        <!-- Total Cost -->
+                        <div className="bg-green-100 p-3 rounded-lg mb-4">
+                          <p className="text-sm font-bold text-green-900">💰 TOTAL: {instructions.totalCost}</p>
+                          <p className="text-xs text-green-700">Savings: {instructions.savingsVsStandard} vs standard booking</p>
                         </div>
                         
-                        <div className="bg-green-50 p-3 rounded-lg mb-4">
-                          <p className="text-xs text-green-700">
-                            <strong>💰 Estimated Savings:</strong> {explanation.estimatedSavings}
-                          </p>
-                        </div>
-                        
-                        {explanation.warnings.length > 0 && (
-                          <div className="bg-red-50 p-3 rounded-lg">
-                            <p className="text-xs font-semibold text-red-700 mb-1">⚠️ Important Warnings:</p>
-                            <ul className="text-xs text-red-600 space-y-1">
-                              {explanation.warnings.map((warning, i) => (
+                        <!-- Warnings -->
+                        {instructions.warnings.length > 0 && (
+                          <div className="bg-red-50 p-3 rounded-lg mb-4 border border-red-200">
+                            <p className="text-xs font-bold text-red-800 mb-2">⚠️ CRITICAL WARNINGS:</p>
+                            <ul className="text-xs text-red-700 space-y-1">
+                              {instructions.warnings.map((warning, i) => (
                                 <li key={i}>• {warning}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        <!-- Tips -->
+                        {instructions.tips.length > 0 && (
+                          <div className="bg-amber-50 p-3 rounded-lg mb-4 border border-amber-200">
+                            <p className="text-xs font-bold text-amber-800 mb-2">💡 Pro Tips:</p>
+                            <ul className="text-xs text-amber-700 space-y-1">
+                              {instructions.tips.map((tip, i) => (
+                                <li key={i}>• {tip}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        <!-- Alternatives -->
+                        {instructions.alternativeOptions.length > 0 && (
+                          <div className="bg-slate-100 p-3 rounded-lg">
+                            <p className="text-xs font-bold text-slate-700 mb-2">🔄 If this doesn't work, try:</p>
+                            <ul className="text-xs text-slate-600 space-y-1">
+                              {instructions.alternativeOptions.map((alt, i) => (
+                                <li key={i}>• {alt}</li>
                               ))}
                             </ul>
                           </div>
