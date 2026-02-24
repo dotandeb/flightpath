@@ -39,6 +39,7 @@ export interface ClickByClickInstructions {
   }[];
   totalCost?: string;
   savingsVsStandard?: string;
+  alternativeOptions?: string[];
   warnings: string[];
   tips: string[];
 }
@@ -88,7 +89,7 @@ export function generateClickByClickInstructions(
   switch(strategy) {
     case "split-ticket":
     case "amadeus-split-ticket":
-      return generateSplitTicketClicks(origin, destination, originAirport, destAirport, departureDate, returnDate, depDay, depMonth, depYear, retDay, retMonth, retYear, price, googleFlightsBase);
+      return addCompatibilityProps(generateSplitTicketClicks(origin, destination, originAirport, destAirport, departureDate, returnDate, depDay, depMonth, depYear, retDay, retMonth, retYear, price, googleFlightsBase));
     
     case "flexible-dates":
     case "amadeus-flexible-departure--2":
@@ -96,14 +97,14 @@ export function generateClickByClickInstructions(
     case "amadeus-flexible-departure-1":
     case "amadeus-flexible-departure-2":
     case "amadeus-flexible-departure-3":
-      return generateFlexibleDateClicks(origin, destination, originAirport, destAirport, departureDate, returnDate, depDay, depMonth, depYear, retDay, retMonth, retYear, price, googleFlightsBase, gfSearchUrl);
+      return addCompatibilityProps(generateFlexibleDateClicks(origin, destination, originAirport, destAirport, departureDate, returnDate, depDay, depMonth, depYear, retDay, retMonth, retYear, price, googleFlightsBase, gfSearchUrl));
     
     case "nearby-origin":
     case "amadeus-nearby-origin":
-      return generateNearbyOriginClicks(origin, destination, originAirport, destAirport, departureDate, returnDate, depDay, depMonth, depYear, retDay, retMonth, retYear, price, googleFlightsBase);
+      return addCompatibilityProps(generateNearbyOriginClicks(origin, destination, originAirport, destAirport, departureDate, returnDate, depDay, depMonth, depYear, retDay, retMonth, retYear, price, googleFlightsBase));
     
     default:
-      return generateStandardClicks(origin, destination, originAirport, destAirport, departureDate, returnDate, depDay, depMonth, depYear, retDay, retMonth, retYear, price, googleFlightsBase, gfSearchUrl, skyscannerUrl, kayakUrl);
+      return addCompatibilityProps(generateStandardClicks(origin, destination, originAirport, destAirport, departureDate, returnDate, depDay, depMonth, depYear, retDay, retMonth, retYear, price, googleFlightsBase, gfSearchUrl, skyscannerUrl, kayakUrl));
   }
 }
 
@@ -633,6 +634,28 @@ function generateNearbyOriginClicks(
       "Allow extra 1-2 hours vs Heathrow",
       "Gatwick has most flight options after Heathrow"
     ]
+  };
+}
+
+function addCompatibilityProps(result: ClickByClickInstructions): ClickByClickInstructions {
+  return {
+    ...result,
+    whatToBook: result.bookings.map(b => ({
+      leg: b.leg,
+      route: b.route,
+      airline: "Various",
+      flightType: b.leg.includes("Round") ? "Return" : "One-way",
+      expectedPrice: b.price,
+      whereToBook: b.where
+    })),
+    exactSteps: result.bookings[0]?.exactSteps.map(s => ({
+      step: s.step,
+      action: s.action,
+      details: s.whatToClick + (s.whatToType ? ` - Type: ${s.whatToType}` : ""),
+      website: s.website
+    })) || [],
+    totalCost: result.totalPrice,
+    savingsVsStandard: "Varies"
   };
 }
 

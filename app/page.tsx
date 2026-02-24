@@ -544,7 +544,7 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                         {/* What to Book */}
                         <div className="mb-4">
                           <p className="text-xs font-bold text-slate-800 uppercase mb-2">✈️ What You Need to Book:</p>
-                          {instructions.whatToBook.map((book, i) => (
+                          {instructions.whatToBook?.map((book, i) => (
                             <div key={i} className="bg-white p-3 rounded-lg mb-2 border border-slate-200">
                               <p className="text-sm font-bold text-sky-700">{book.leg}: {book.route}</p>
                               <p className="text-xs text-slate-600">Airline: {book.airline}</p>
@@ -559,7 +559,7 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                         <div className="mb-4">
                           <p className="text-xs font-bold text-slate-800 uppercase mb-2">📝 EXACT Steps (Do in this order):</p>
                           <ol className="space-y-3">
-                            {instructions.exactSteps.map((step, i) => (
+                            {instructions.exactSteps?.map((step, i) => (
                               <li key={i} className="bg-white p-3 rounded-lg border border-slate-200">
                                 <div className="flex gap-3">
                                   <span className="flex-shrink-0 w-6 h-6 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{step.step}</span>
@@ -607,11 +607,11 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                         )}
                         
                         {/* Alternatives */}
-                        {instructions.alternativeOptions.length > 0 && (
+                        {instructions.alternativeOptions && instructions.alternativeOptions.length > 0 && (
                           <div className="bg-slate-100 p-3 rounded-lg">
                             <p className="text-xs font-bold text-slate-700 mb-2">🔄 If this doesn't work, try:</p>
                             <ul className="text-xs text-slate-600 space-y-1">
-                              {instructions.alternativeOptions.map((alt, i) => (
+                              {instructions.alternativeOptions?.map((alt, i) => (
                                 <li key={i}>• {alt}</li>
                               ))}
                             </ul>
