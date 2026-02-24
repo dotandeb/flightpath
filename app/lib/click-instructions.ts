@@ -22,6 +22,23 @@ export interface ClickByClickInstructions {
       expectedResult: string;
     }[];
   }[];
+  // Compatibility properties for old code
+  whatToBook?: {
+    leg: string;
+    route: string;
+    airline: string;
+    flightType: string;
+    expectedPrice: string;
+    whereToBook: string;
+  }[];
+  exactSteps?: {
+    step: number;
+    action: string;
+    details: string;
+    website?: string;
+  }[];
+  totalCost?: string;
+  savingsVsStandard?: string;
   warnings: string[];
   tips: string[];
 }
