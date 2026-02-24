@@ -6,7 +6,7 @@ import { SearchForm, SearchParams } from './components/SearchForm';
 import { SearchProgress } from './components/SearchProgress';
 import { Plane, Check, ArrowRight, AlertTriangle, Sparkles, Shield, Zap, Globe, Lock, X, ChevronDown, Mail, Search, Bell, Wallet, Info, Route, Ticket, MapPin, ExternalLink, BookOpen, Clock, AlertCircle } from 'lucide-react';
 import { getCurrentUser, canUserSearch, incrementSearchCount } from './lib/auth';
-import { generateSpecificInstructions, getQuickSummary, SpecificDealInstructions } from './lib/deal-explanations';
+import { generateClickByClickInstructions, ClickByClickInstructions } from './lib/click-instructions';
 
 export default function Home() {
   const router = useRouter();
