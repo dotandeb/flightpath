@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchForm, SearchParams } from './components/SearchForm';
-import { Plane, Check, ArrowRight, AlertTriangle, Sparkles, Shield, Zap, Globe, Lock, X, ChevronDown, Mail, Search, Bell, Wallet, Info, Route, Ticket, MapPin, ExternalLink } from 'lucide-react';
+import { SearchProgress } from './components/SearchProgress';
+import { Plane, Check, ArrowRight, AlertTriangle, Sparkles, Shield, Zap, Globe, Lock, X, ChevronDown, Mail, Search, Bell, Wallet, Info, Route, Ticket, MapPin, ExternalLink, BookOpen, Clock, AlertCircle } from 'lucide-react';
 import { getCurrentUser, canUserSearch, incrementSearchCount } from './lib/auth';
+import { generateDealExplanation } from './lib/deal-explanations';
 
 export default function Home() {
   const router = useRouter();
@@ -17,6 +19,11 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [teaserUsed, setTeaserUsed] = useState(false);
+  const [searchProgress, setSearchProgress] = useState({
+    currentStep: 0,
+    totalSteps: 10,
+    stepName: "Initializing search..."
+  });
 
   // Check for user on mount
   useEffect(() => {
@@ -38,24 +45,35 @@ export default function Home() {
   };
 
   const handleSearch = async (params: SearchParams) => {
-    // Check if user can search
-    if (user) {
-      const { canSearch, remaining } = await canUserSearch(user.id);
-      if (!canSearch) {
-        setShowAuthModal(true);
-        return;
-      }
-      setSearchesRemaining(remaining - 1);
-      await incrementSearchCount(user.id);
-    } else {
-      // Allow unlimited searches without signup for testing
-      // Original: 1 search teaser, then require signup
-      // TODO: Re-enable paywall after testing
-    }
-
     setLoading(true);
     setError(null);
     setResults(null);
+    
+    // Simulate progress steps
+    const steps = [
+      "Checking RSS deal feeds...",
+      "Scanning SecretFlying...",
+      "Scanning Fly4Free...",
+      "Scanning HolidayPirates...",
+      "Scanning AirfareWatchdog...",
+      "Scanning ThriftyTraveler...",
+      "Analyzing split-ticket options...",
+      "Checking nearby airports...",
+      "Comparing flexible dates...",
+      "Finalizing best deals..."
+    ];
+    
+    let currentStep = 0;
+    const progressInterval = setInterval(() => {
+      if (currentStep < steps.length - 1) {
+        currentStep++;
+        setSearchProgress({
+          currentStep,
+          totalSteps: steps.length,
+          stepName: steps[currentStep]
+        });
+      }
+    }, 800);
     
     try {
       const response = await fetch('/api/search', {
@@ -78,7 +96,9 @@ export default function Home() {
     } catch (err: any) {
       setError(err.message || 'Failed to search flights');
     } finally {
+      clearInterval(progressInterval);
       setLoading(false);
+      setSearchProgress({ currentStep: 0, totalSteps: 10, stepName: "" });
     }
   };
 
@@ -207,6 +227,18 @@ export default function Home() {
                 <p>API calls: {results.searchMetadata.totalApiCalls} | Cache hits: {results.searchMetadata.cacheHits}</p>
               </div>
             )}
+          </div>
+        )}
+        
+        {/* Progress Indicator */}
+        {loading && (
+          <div className="max-w-4xl mx-auto">
+            <SearchProgress 
+              isSearching={loading}
+              currentStep={searchProgress.currentStep}
+              totalSteps={searchProgress.totalSteps}
+              stepName={searchProgress.stepName}
+            />
           </div>
         )}
       </div>
@@ -460,6 +492,83 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                     <p className="text-xs text-amber-700">{option._howToFind}</p>
                   </div>
                 )}
+                
+                {/* Detailed Deal Explanation */}
+                {(() => {
+                  const explanation = generateDealExplanation(
+                    option.segments?.[0]?.origin?.code || 'XXX',
+                    option.segments?.[0]?.destination?.code || 'XXX',
+                    option.totalPrice,
+                    result.standardOption?.totalPrice || option.totalPrice * 1.2,
+                    option.strategy,
+                    option.segments?.[0]?.airlineName || 'Deal Site'
+                  );
+                  
+                  return (
+                    <div className="mt-4 border-t border-slate-200 pt-4">
+                      <button
+                        onClick={(e) => {
+                          const details = e.currentTarget.nextElementSibling;
+                          if (details) {
+                            details.classList.toggle('hidden');
+                          }
+                        }}
+                        className="flex items-center gap-2 text-sm text-sky-600 hover:text-sky-700 font-medium"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        📖 How to recreate this deal step-by-step
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      
+                      <div className="hidden mt-4 bg-slate-50 rounded-lg p-4">
+                        <h4 className="font-semibold text-slate-900 mb-2">{explanation.title}</h4>
+                        <p className="text-sm text-slate-600 mb-4">{explanation.summary}</p>
+                        
+                        <div className="mb-4">
+                          <p className="text-xs font-semibold text-slate-700 mb-2">Step-by-step instructions:</p>
+                          <ol className="text-sm text-slate-600 space-y-2">
+                            {explanation.steps.map((step, i) => (
+                              step ? (
+                                <li key={i} className="flex gap-2">
+                                  <span className="font-semibold text-sky-600">{i + 1}.</span>
+                                  <span>{step}</span>
+                                </li>
+                              ) : null
+                            ))}
+                          </ol>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="bg-white p-3 rounded-lg">
+                            <p className="text-xs text-slate-500 mb-1">Difficulty</p>
+                            <p className="text-sm font-semibold text-slate-900">{explanation.difficulty}</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg">
+                            <p className="text-xs text-slate-500 mb-1">Time Required</p>
+                            <p className="text-sm font-semibold text-slate-900">{explanation.timeRequired}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-green-50 p-3 rounded-lg mb-4">
+                          <p className="text-xs text-green-700">
+                            <strong>💰 Estimated Savings:</strong> {explanation.estimatedSavings}
+                          </p>
+                        </div>
+                        
+                        {explanation.warnings.length > 0 && (
+                          <div className="bg-red-50 p-3 rounded-lg">
+                            <p className="text-xs font-semibold text-red-700 mb-1">⚠️ Important Warnings:</p>
+                            <ul className="text-xs text-red-600 space-y-1">
+                              {explanation.warnings.map((warning, i) => (
+                                <li key={i}>• {warning}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
