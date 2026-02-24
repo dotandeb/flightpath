@@ -538,7 +538,7 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                       <div className="hidden mt-4 bg-slate-50 rounded-lg p-4">
                         {/* Quick Summary */}
                         <div className="bg-sky-100 p-3 rounded-lg mb-4">
-                          <p className="text-sm font-semibold text-sky-900">{getQuickSummary(instructions)}</p>
+                          <p className="text-sm font-semibold text-sky-900">Check instructions below</p>
                         </div>
                         
                         {/* What to Book */}
