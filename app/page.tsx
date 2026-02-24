@@ -535,12 +535,12 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                       </button>
                       
                       <div className="hidden mt-4 bg-slate-50 rounded-lg p-4">
-                        <!-- Quick Summary -->
+                        {/* Quick Summary */}
                         <div className="bg-sky-100 p-3 rounded-lg mb-4">
                           <p className="text-sm font-semibold text-sky-900">{getQuickSummary(instructions)}</p>
                         </div>
                         
-                        <!-- What to Book -->
+                        {/* What to Book */}
                         <div className="mb-4">
                           <p className="text-xs font-bold text-slate-800 uppercase mb-2">✈️ What You Need to Book:</p>
                           {instructions.whatToBook.map((book, i) => (
@@ -554,7 +554,7 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                           ))}
                         </div>
                         
-                        <!-- Step by Step -->
+                        {/* Step by Step */}
                         <div className="mb-4">
                           <p className="text-xs font-bold text-slate-800 uppercase mb-2">📝 EXACT Steps (Do in this order):</p>
                           <ol className="space-y-3">
@@ -575,13 +575,13 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                           </ol>
                         </div>
                         
-                        <!-- Total Cost -->
+                        {/* Total Cost */}
                         <div className="bg-green-100 p-3 rounded-lg mb-4">
                           <p className="text-sm font-bold text-green-900">💰 TOTAL: {instructions.totalCost}</p>
                           <p className="text-xs text-green-700">Savings: {instructions.savingsVsStandard} vs standard booking</p>
                         </div>
                         
-                        <!-- Warnings -->
+                        {/* Warnings */}
                         {instructions.warnings.length > 0 && (
                           <div className="bg-red-50 p-3 rounded-lg mb-4 border border-red-200">
                             <p className="text-xs font-bold text-red-800 mb-2">⚠️ CRITICAL WARNINGS:</p>
@@ -593,7 +593,7 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                           </div>
                         )}
                         
-                        <!-- Tips -->
+                        {/* Tips */}
                         {instructions.tips.length > 0 && (
                           <div className="bg-amber-50 p-3 rounded-lg mb-4 border border-amber-200">
                             <p className="text-xs font-bold text-amber-800 mb-2">💡 Pro Tips:</p>
@@ -605,7 +605,7 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                           </div>
                         )}
                         
-                        <!-- Alternatives -->
+                        {/* Alternatives */}
                         {instructions.alternativeOptions.length > 0 && (
                           <div className="bg-slate-100 p-3 rounded-lg">
                             <p className="text-xs font-bold text-slate-700 mb-2">🔄 If this doesn't work, try:</p>
