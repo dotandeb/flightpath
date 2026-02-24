@@ -7,6 +7,7 @@ import { SearchProgress } from './components/SearchProgress';
 import { Plane, Check, ArrowRight, AlertTriangle, Sparkles, Shield, Zap, Globe, Lock, X, ChevronDown, Mail, Search, Bell, Wallet, Info, Route, Ticket, MapPin, ExternalLink, BookOpen, Clock, AlertCircle } from 'lucide-react';
 import { getCurrentUser, canUserSearch, incrementSearchCount } from './lib/auth';
 import { generateClickByClickInstructions, ClickByClickInstructions } from './lib/click-instructions';
+import { generateManualBookingGuide } from './lib/manual-booking-guide';
 
 export default function Home() {
   const router = useRouter();
@@ -354,7 +355,7 @@ function StrategyCard({ icon, title, description, savings }: { icon: string; tit
   );
 }
 
-function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (url?: string) => void }) {
+function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (url?: string, searchParams?: any) => void }) {
   if (!result || result.error) {
     return <div className="p-4 bg-red-50 rounded-lg text-red-700">{result?.error || "Error"}</div>;
   }
@@ -507,7 +508,7 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                 
                 {/* Detailed Deal Explanation - SPECIFIC INSTRUCTIONS */}
                 {(() => {
-                  const instructions = generateSpecificInstructions(
+                  const instructions = generateClickByClickInstructions(
                     option.segments?.[0]?.origin?.code || 'XXX',
                     option.segments?.[0]?.destination?.code || 'XXX',
                     result.searchParams?.departureDate || '2025-06-01',
