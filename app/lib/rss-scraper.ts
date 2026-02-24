@@ -226,19 +226,148 @@ export async function scrapeHolidayPirates(): Promise<ParsedDeal[]> {
 }
 
 /**
- * Scrape Airfare Watchdog
+ * Scrape Airfare Watchdog deals
  */
 export async function scrapeAirfareWatchdog(): Promise<ParsedDeal[]> {
-  // Airfare Watchdog has deals but RSS may be limited
+  // Airfare Watchdog RSS feed
+  const cacheKey = "airfarewatchdog";
+  const cached = rssCache.get(cacheKey);
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.deals;
+  }
+
+  console.log("[RSS] Fetching Airfare Watchdog...");
+  
+  try {
+    const items = await fetchRSS("https://www.airfarewatchdog.com/rss/feed/");
+    const deals: ParsedDeal[] = [];
+    
+    for (const item of items.slice(0, 10)) {
+      const parsed = parseAirfareWatchdogTitle(item.title, item.description);
+      
+      if (parsed) {
+        deals.push({
+          ...parsed,
+          source: "AirfareWatchdog",
+          url: item.link,
+          publishedAt: item.pubDate,
+        });
+      }
+    }
+
+    rssCache.set(cacheKey, { deals, timestamp: Date.now() });
+    console.log(`[RSS] Airfare Watchdog: ${deals.length} deals`);
+    return deals;
+  } catch (e) {
+    console.log("[RSS] Airfare Watchdog failed");
+    return [];
+  }
+}
+
+/**
+ * Scrape Thrifty Traveler deals
+ */
+export async function scrapeThriftyTraveler(): Promise<ParsedDeal[]> {
+  const cacheKey = "thriftytraveler";
+  const cached = rssCache.get(cacheKey);
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.deals;
+  }
+
+  console.log("[RSS] Fetching Thrifty Traveler...");
+  
+  try {
+    const items = await fetchRSS("https://thriftytraveler.com/feed/");
+    const deals: ParsedDeal[] = [];
+    
+    for (const item of items.slice(0, 10)) {
+      const parsed = parseThriftyTravelerTitle(item.title);
+      
+      if (parsed) {
+        deals.push({
+          ...parsed,
+          source: "ThriftyTraveler",
+          url: item.link,
+          publishedAt: item.pubDate,
+        });
+      }
+    }
+
+    rssCache.set(cacheKey, { deals, timestamp: Date.now() });
+    console.log(`[RSS] Thrifty Traveler: ${deals.length} deals`);
+    return deals;
+  } catch (e) {
+    console.log("[RSS] Thrifty Traveler failed");
+    return [];
+  }
+}
+
+/**
+ * Scrape Dollar Flight Club deals
+ */
+export async function scrapeDollarFlightClub(): Promise<ParsedDeal[]> {
+  // Dollar Flight Club requires subscription for RSS
   return [];
 }
 
 /**
- * Scrape Scott's Cheap Flights (Going.com)
+ * Parse Airfare Watchdog title
  */
-export async function scrapeScottsCheapFlights(): Promise<ParsedDeal[]> {
-  // Requires subscription
-  return [];
+function parseAirfareWatchdogTitle(title: string, description?: string): Omit<ParsedDeal, "source" | "url" | "publishedAt"> | null {
+  const priceMatch = title.match(/\$(\d+)/);
+  if (!priceMatch) return null;
+  
+  const price = parseInt(priceMatch[1]);
+  const currency = "USD";
+
+  const routeMatch = title.match(/(\w+(?:\s+\w+)?)\s+(?:to|-)\s+(\w+(?:\s+\w+)?)/i);
+  if (!routeMatch) return null;
+  
+  const from = routeMatch[1].trim();
+  const to = routeMatch[2].trim();
+  
+  return {
+    route: `${from} to ${to}`,
+    from,
+    to,
+    fromCode: cityToAirportCode(from),
+    toCode: cityToAirportCode(to),
+    price,
+    currency,
+    dates: "Check link for dates",
+    confidence: "medium",
+  };
+}
+
+/**
+ * Parse Thrifty Traveler title
+ */
+function parseThriftyTravelerTitle(title: string): Omit<ParsedDeal, "source" | "url" | "publishedAt"> | null {
+  const priceMatch = title.match(/\$(\d+)/);
+  if (!priceMatch) return null;
+  
+  const price = parseInt(priceMatch[1]);
+  const currency = "USD";
+
+  const routeMatch = title.match(/(\w+)\s+to\s+(\w+)/i);
+  if (!routeMatch) return null;
+  
+  const from = routeMatch[1];
+  const to = routeMatch[2];
+  
+  return {
+    route: `${from} to ${to}`,
+    from,
+    to,
+    fromCode: cityToAirportCode(from),
+    toCode: cityToAirportCode(to),
+    price,
+    currency,
+    dates: "Various",
+    confidence: "medium",
+  };
 }
 
 /**
@@ -558,13 +687,15 @@ function cityToAirportCode(city: string): string {
 export async function getAllRSSDeals(): Promise<ParsedDeal[]> {
   console.log("[RSS] Fetching all deal sources...");
   
-  const [secretFlying, fly4Free, holidayPirates] = await Promise.all([
+  const [secretFlying, fly4Free, holidayPirates, airfareWatchdog, thriftyTraveler] = await Promise.all([
     scrapeSecretFlying(),
     scrapeFly4Free(),
     scrapeHolidayPirates(),
+    scrapeAirfareWatchdog(),
+    scrapeThriftyTraveler(),
   ]);
   
-  const allDeals = [...secretFlying, ...fly4Free, ...holidayPirates];
+  const allDeals = [...secretFlying, ...fly4Free, ...holidayPirates, ...airfareWatchdog, ...thriftyTraveler];
   
   // Sort by price
   allDeals.sort((a, b) => a.price - b.price);
