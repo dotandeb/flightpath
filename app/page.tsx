@@ -530,6 +530,117 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                 
                 {/* Detailed Deal Explanation - SPECIFIC INSTRUCTIONS */}
                 {(() => {
+                  // Use split ticket details if available, otherwise generate generic
+                  const splitDetails = option._splitTicketDetails;
+                  
+                  if (splitDetails) {
+                    // Show specific split ticket instructions with exact flights
+                    return (
+                      <div className="mt-4 border-t border-slate-200 pt-4">
+                        <button
+                          onClick={(e) => {
+                            const details = e.currentTarget.nextElementSibling;
+                            if (details) {
+                              details.classList.toggle('hidden');
+                            }
+                          }}
+                          className="flex items-center gap-2 text-sm text-sky-600 hover:text-sky-700 font-medium w-full justify-between"
+                        >
+                          <span className="flex items-center gap-2">
+                            <BookOpen className="w-4 h-4" />
+                            📖 EXACT Steps to Book These Single Tickets
+                          </span>
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                        
+                        <div className="hidden mt-4 bg-slate-50 rounded-lg p-4">
+                          {/* Exact Flights to Book */}
+                          <div className="mb-4">
+                            <p className="text-xs font-bold text-slate-800 uppercase mb-2">✈️ EXACT FLIGHTS TO BOOK:</p>
+                            {splitDetails.legs.map((leg: any, i: number) => (
+                              <div key={i} className="bg-white p-3 rounded-lg mb-2 border border-slate-200">
+                                <p className="text-sm font-bold text-sky-700">{leg.leg}</p>
+                                <p className="text-lg font-bold text-slate-900">{leg.airline} {leg.flightNumber}</p>
+                                <div className="mt-2 text-sm">
+                                  <p className="font-semibold">{leg.departure.airportCode} → {leg.arrival.airportCode}</p>
+                                  <p className="text-slate-600">{leg.departure.time} → {leg.arrival.time} ({leg.duration})</p>
+                                  <p className="text-slate-600">{leg.departure.date}</p>
+                                  {leg.stopover && (
+                                    <p className="text-amber-600 text-xs">⏱️ Stopover: {leg.stopover.airport} ({leg.stopover.duration})</p>
+                                  )}
+                                </div>
+                                <p className="text-green-600 font-bold mt-2">£{leg.price} - {leg.class}</p>
+                                <p className="text-xs text-slate-500">Baggage: {leg.baggage.carryOn}, {leg.baggage.checked}</p>
+                                
+                                <a 
+                                  href={leg.bookingUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="mt-2 inline-block bg-sky-500 text-white text-xs font-bold py-1 px-3 rounded hover:bg-sky-600"
+                                >
+                                  Book on {leg.airline} →
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {/* Step by Step Booking */}
+                          <div className="mb-4">
+                            <p className="text-xs font-bold text-slate-800 uppercase mb-2">📝 STEP-BY-STEP BOOKING:</p>
+                            <ol className="space-y-3">
+                              {splitDetails.bookingInstructions.map((inst: any, i: number) => (
+                                <li key={i} className="bg-white p-3 rounded-lg border border-slate-200">
+                                  <div className="flex gap-3">
+                                    <span className="flex-shrink-0 w-6 h-6 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{inst.step}</span>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-bold text-slate-900">{inst.action}</p>
+                                      <p className="text-xs text-slate-600 mt-1">{inst.details}</p>
+                                      <a 
+                                        href={inst.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-sky-600 hover:underline mt-1 inline-block"
+                                      >
+                                        🌐 Open {inst.website}
+                                      </a>
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                          
+                          {/* Total Cost */}
+                          <div className="bg-green-100 p-3 rounded-lg mb-4">
+                            <p className="text-sm font-bold text-green-900">💰 TOTAL: £{splitDetails.totalPrice}</p>
+                            <p className="text-xs text-green-700">Savings: £{splitDetails.savingsVsStandard} vs standard return ticket</p>
+                          </div>
+                          
+                          {/* Warnings */}
+                          <div className="bg-red-50 p-3 rounded-lg mb-4 border border-red-200">
+                            <p className="text-xs font-bold text-red-800 mb-2">⚠️ CRITICAL WARNINGS:</p>
+                            <ul className="text-xs text-red-700 space-y-1">
+                              {splitDetails.risks.map((risk: string, i: number) => (
+                                <li key={i}>• {risk}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          
+                          {/* Tips */}
+                          <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                            <p className="text-xs font-bold text-amber-800 mb-2">💡 Pro Tips:</p>
+                            <ul className="text-xs text-amber-700 space-y-1">
+                              {splitDetails.tips.map((tip: string, i: number) => (
+                                <li key={i}>• {tip}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Fallback to generic instructions for non-split tickets
                   const instructions = generateClickByClickInstructions(
                     option.segments?.[0]?.origin?.code || 'XXX',
                     option.segments?.[0]?.destination?.code || 'XXX',
