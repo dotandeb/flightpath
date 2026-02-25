@@ -104,9 +104,8 @@ export default function Home() {
   };
 
   const handleBookClick = (url?: string, searchParams?: any) => {
-    // For testing: open deal link or Google Flights fallback
-    if (url && !url.includes('fly4free') && !url.includes('rss')) {
-      // Open direct deal links that work
+    // Always try to open the URL if provided and looks valid
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
       window.open(url, '_blank');
     } else if (searchParams) {
       // Build Google Flights link as reliable fallback
@@ -413,8 +412,14 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
         </h3>
         
         {allOptions.map((option: any, idx: number) => {
-          // Get booking URL from deal or booking links
-          const bookingUrl = option._dealUrl || option.bookingLinks?.[0]?.url || option.bookingLinks?.[0]?.link;
+          // Get booking URL from multiple possible sources
+          const bookingUrl = option._dealUrl || 
+                             option.bookingLinks?.[0]?.url || 
+                             option.bookingLinks?.[0]?.link ||
+                             (option._splitTicketDetails?.legs?.[0]?.bookingUrl);
+          
+          // For split tickets, show all booking links
+          const allBookingLinks = option.bookingLinks || [];
           
           return (
             <div key={idx} className={`bg-white rounded-xl shadow-md overflow-hidden ${idx === 0 ? 'ring-2 ring-green-500' : 'border border-slate-200'}`}>
@@ -486,10 +491,27 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                   className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  {bookingUrl && !bookingUrl.includes('rss') 
-                    ? `View Deal on ${option.segments?.[0]?.airlineName || 'Website'}` 
+                  {bookingUrl 
+                    ? `Book on ${option.segments?.[0]?.airlineName || 'Airline Website'}` 
                     : 'Search on Google Flights'}
                 </button>
+                
+                {/* Show all booking links for split tickets */}
+                {option.strategy === 'split-ticket-detailed' && allBookingLinks.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs font-semibold text-slate-700">🎫 Book These Single Tickets:</p>
+                    {allBookingLinks.map((link: any, linkIdx: number) => (
+                      <button
+                        key={linkIdx}
+                        onClick={() => onBookClick(link.url, result.searchParams)}
+                        className="w-full bg-white border-2 border-sky-200 text-sky-700 font-semibold py-2 px-3 rounded-lg hover:bg-sky-50 transition-colors text-sm flex items-center justify-between"
+                      >
+                        <span>Ticket #{linkIdx + 1}: {link.airline} - £{link.price}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Show actual URL for transparency */}
                 {bookingUrl && (
