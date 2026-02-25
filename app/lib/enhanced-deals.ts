@@ -39,6 +39,8 @@ export interface ExactFlightDetails {
 
 export interface SplitTicketDetails {
   strategy: "split-ticket";
+  title: string;
+  subtitle: string;
   totalPrice: number;
   currency: string;
   savingsVsStandard: number;
