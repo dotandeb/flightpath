@@ -106,6 +106,12 @@ export async function POST(request: NextRequest) {
           totalPrice: deal.price,
           perPersonPrice: deal.price,
           currency: deal.currency,
+          confidence: deal.confidence || "medium",
+          confidenceReason: deal.confidence === "high" 
+            ? "Recent deal from verified source. Price likely accurate."
+            : deal.confidence === "medium"
+            ? "Deal may be expired or dates limited. Verify on website."
+            : "Deal may be expired. Use as reference only.",
           segments: [{
             id: `deal-segment-1`,
             origin: { 
@@ -159,7 +165,8 @@ export async function POST(request: NextRequest) {
         params.origin,
         params.destination,
         params.departureDate,
-        params.returnDate
+        params.returnDate,
+        params.travelClass || "ECONOMY"
       );
       
       allOptions.push({
@@ -170,6 +177,8 @@ export async function POST(request: NextRequest) {
         totalPrice: splitTicketDetails.totalPrice,
         perPersonPrice: splitTicketDetails.totalPrice,
         currency: splitTicketDetails.currency,
+        confidence: "medium", // Example data, not real-time
+        confidenceReason: "Based on historical pricing data. Actual prices may vary. Check airline website for current availability.",
         segments: splitTicketDetails.legs.map(leg => ({
           id: `split-${leg.leg}`,
           origin: {

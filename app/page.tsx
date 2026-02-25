@@ -433,9 +433,34 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
               <div className="p-4">
                 {/* Price Header */}
                 <div className="flex justify-between items-start mb-4">
-                  <div>
+                  <div className="flex-1">
                     <p className="font-semibold text-slate-900">{option.strategyDescription}</p>
-                    <p className="text-sm text-slate-500">{option.segments?.length} segment{option.segments?.length !== 1 ? 's' : ''}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-sm text-slate-500">{option.segments?.length} segment{option.segments?.length !== 1 ? 's' : ''}</p>
+                      <span className="text-slate-300">|</span>
+                      <p className="text-sm text-slate-500">{option.segments?.[0]?.cabinClass || 'Economy'}</p>
+                    </div>
+                    
+                    {/* Confidence Badge */}
+                    {option.confidence && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                          option.confidence === 'high' 
+                            ? 'bg-green-100 text-green-700' 
+                            : option.confidence === 'medium'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {option.confidence === 'high' ? '✓ High Confidence' 
+                            : option.confidence === 'medium' ? '⚠ Medium Confidence' 
+                            : '✗ Low Confidence'}
+                        </span>
+                        {option.confidenceReason && (
+                          <span className="text-xs text-slate-500">{option.confidenceReason}</span>
+                        )}
+                      </div>
+                    )}
+                    
                     {option._source === 'rss-deal' && (
                       <p className="text-xs text-sky-600 mt-1">📰 From {option.segments?.[0]?.airlineName || 'deal site'}</p>
                     )}

@@ -64,21 +64,29 @@ export function generateSplitTicketExample(
   origin: string,
   destination: string,
   departureDate: string,
-  returnDate: string | undefined
+  returnDate: string | undefined,
+  cabinClass: string = "ECONOMY"
 ): SplitTicketDetails {
   
+  // Determine class display name and price multiplier
+  const isBusiness = cabinClass === "BUSINESS" || cabinClass === "FIRST";
+  const className = isBusiness ? "Business" : "Economy";
+  const priceMultiplier = isBusiness ? 3.5 : 1; // Business is ~3.5x economy price
+  
   // Example: LHR to BKK split ticket via different airlines
-  const outboundPrice = 320;
-  const returnPrice = returnDate ? 280 : 0;
+  const baseOutboundPrice = 320;
+  const baseReturnPrice = returnDate ? 280 : 0;
+  const outboundPrice = Math.round(baseOutboundPrice * priceMultiplier);
+  const returnPrice = returnDate ? Math.round(baseReturnPrice * priceMultiplier) : 0;
   const totalPrice = outboundPrice + returnPrice;
-  const standardPrice = 750; // Estimated standard price
+  const standardPrice = Math.round(750 * priceMultiplier); // Estimated standard price
   
   return {
     strategy: "split-ticket",
     title: `💰 SAVE £${standardPrice - totalPrice}: Book ${returnDate ? 'TWO SINGLE TICKETS' : 'ONE SINGLE TICKET'}`,
     subtitle: returnDate 
-      ? `Book TWO SEPARATE ONE-WAY tickets on TWO DIFFERENT airlines. NOT a return ticket.`
-      : `Book ONE SINGLE ONE-WAY ticket. NOT a return ticket.`,
+      ? `Book TWO SEPARATE ONE-WAY ${className.toUpperCase()} tickets on TWO DIFFERENT airlines. NOT a return ticket.`
+      : `Book ONE SINGLE ONE-WAY ${className.toUpperCase()} ticket. NOT a return ticket.`,
     totalPrice,
     currency: "GBP",
     savingsVsStandard: standardPrice - totalPrice,
@@ -104,13 +112,13 @@ export function generateSplitTicketExample(
         },
         duration: "11h 30m",
         stops: 0,
-        class: "Economy",
+        class: className,
         price: outboundPrice,
         currency: "GBP",
         bookingUrl: "https://www.thaiairways.com",
         baggage: {
-          carryOn: "7kg included",
-          checked: "30kg included"
+          carryOn: isBusiness ? "14kg included" : "7kg included",
+          checked: isBusiness ? "40kg included" : "30kg included"
         }
       },
       ...(returnDate ? [{
@@ -138,21 +146,21 @@ export function generateSplitTicketExample(
           airport: "Dubai (DXB)",
           duration: "2h 30m"
         },
-        class: "Economy",
+        class: className,
         price: returnPrice,
         currency: "GBP",
         bookingUrl: "https://www.emirates.com",
         baggage: {
-          carryOn: "7kg included",
-          checked: "30kg included"
+          carryOn: isBusiness ? "14kg included" : "7kg included",
+          checked: isBusiness ? "40kg included" : "30kg included"
         }
       }] : [])
     ],
     bookingInstructions: [
       {
         step: 1,
-        action: "🎫 Book SINGLE TICKET #1 - Outbound",
-        details: `This is a SEPARATE ONE-WAY ticket. Book Thai Airways TG911 from LHR to BKK on ${departureDate}. Price: £${outboundPrice}. You will receive ONE confirmation number for this ticket only.`,
+        action: `🎫 Book SINGLE ${className.toUpperCase()} TICKET #1 - Outbound`,
+        details: `This is a SEPARATE ONE-WAY ${className.toUpperCase()} ticket. Book Thai Airways TG911 from LHR to BKK on ${departureDate}. Price: £${outboundPrice}. You will receive ONE confirmation number for this ticket only.`,
         website: "Thai Airways",
         url: "https://www.thaiairways.com"
       },
@@ -165,8 +173,8 @@ export function generateSplitTicketExample(
       },
       ...(returnDate ? [{
         step: 3,
-        action: "🎫 Book SINGLE TICKET #2 - Return (SEPARATE BOOKING)",
-        details: `This is a DIFFERENT ONE-WAY ticket from a DIFFERENT AIRLINE. Book Emirates EK374 from BKK to LHR on ${returnDate}. Price: £${returnPrice}. Use EXACT SAME passenger name as Ticket #1. You will receive a SECOND confirmation number.`,
+        action: `🎫 Book SINGLE ${className.toUpperCase()} TICKET #2 - Return (SEPARATE BOOKING)`,
+        details: `This is a DIFFERENT ONE-WAY ${className.toUpperCase()} ticket from a DIFFERENT AIRLINE. Book Emirates EK374 from BKK to LHR on ${returnDate}. Price: £${returnPrice}. Use EXACT SAME passenger name as Ticket #1. You will receive a SECOND confirmation number.`,
         website: "Emirates",
         url: "https://www.emirates.com"
       },
