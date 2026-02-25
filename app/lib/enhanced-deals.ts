@@ -73,6 +73,10 @@ export function generateSplitTicketExample(
   
   return {
     strategy: "split-ticket",
+    title: `💰 SAVE £${standardPrice - totalPrice}: Book ${returnDate ? 'TWO SINGLE TICKETS' : 'ONE SINGLE TICKET'}`,
+    subtitle: returnDate 
+      ? `Book TWO SEPARATE ONE-WAY tickets on TWO DIFFERENT airlines. NOT a return ticket.`
+      : `Book ONE SINGLE ONE-WAY ticket. NOT a return ticket.`,
     totalPrice,
     currency: "GBP",
     savingsVsStandard: standardPrice - totalPrice,
@@ -145,48 +149,51 @@ export function generateSplitTicketExample(
     bookingInstructions: [
       {
         step: 1,
-        action: "Book Outbound Flight FIRST",
-        details: `Book Thai Airways TG911 from LHR to BKK on ${departureDate}. Price: £${outboundPrice}`,
+        action: "🎫 Book SINGLE TICKET #1 - Outbound",
+        details: `This is a SEPARATE ONE-WAY ticket. Book Thai Airways TG911 from LHR to BKK on ${departureDate}. Price: £${outboundPrice}. You will receive ONE confirmation number for this ticket only.`,
         website: "Thai Airways",
         url: "https://www.thaiairways.com"
       },
       {
         step: 2,
-        action: "Complete Outbound Booking",
-        details: "Use exact passenger name as on passport. Save confirmation number.",
+        action: "✅ Complete Ticket #1 Booking",
+        details: "Use exact passenger name as on passport. Save confirmation number. This is ONLY for your outbound flight.",
         website: "Thai Airways",
         url: "https://www.thaiairways.com"
       },
       ...(returnDate ? [{
         step: 3,
-        action: "Book Return Flight SECOND",
-        details: `Book Emirates EK374 from BKK to LHR on ${returnDate}. Price: £${returnPrice}. Use SAME passenger name.`,
+        action: "🎫 Book SINGLE TICKET #2 - Return (SEPARATE BOOKING)",
+        details: `This is a DIFFERENT ONE-WAY ticket from a DIFFERENT AIRLINE. Book Emirates EK374 from BKK to LHR on ${returnDate}. Price: £${returnPrice}. Use EXACT SAME passenger name as Ticket #1. You will receive a SECOND confirmation number.`,
         website: "Emirates",
         url: "https://www.emirates.com"
       },
       {
         step: 4,
-        action: "Complete Return Booking",
-        details: "Save second confirmation number. You now have TWO separate tickets.",
+        action: "✅ Complete Ticket #2 Booking",
+        details: "Save this second confirmation number. You now have TWO SEPARATE SINGLE TICKETS on TWO DIFFERENT AIRLINES. They are NOT connected.",
         website: "Emirates",
         url: "https://www.emirates.com"
       }] : [])
     ],
     risks: [
-      "⚠️ These are SEPARATE bookings - airlines won't help if you miss connections",
-      "If outbound flight is cancelled, return ticket is NOT protected",
-      "You must collect and re-check baggage in Bangkok",
-      "Different cancellation policies for each ticket",
-      "No airline assistance if delays cause missed connections"
+      "⚠️ CRITICAL: These are TWO SEPARATE SINGLE TICKETS - not a return ticket",
+      "⚠️ The airlines do NOT know about each other - you are booking independently",
+      "If outbound flight is cancelled, Emirates will NOT rebook your return",
+      "You must collect and re-check baggage in Bangkok (not through-checked)",
+      "Different cancellation/change policies for each single ticket",
+      "No airline assistance if delays cause missed connections",
+      "You need TWO separate check-ins (24hrs before each flight)"
     ],
     tips: [
-      "Book outbound FIRST, wait for confirmation, then book return",
-      "Use EXACT same passenger name spelling on both bookings",
-      "Save both confirmation numbers in your phone",
+      "Book outbound SINGLE TICKET first, wait for email confirmation",
+      "Use EXACT same passenger name spelling on BOTH single tickets",
+      "You will have TWO confirmation numbers - save both",
       "Set TWO calendar reminders: 24hrs before EACH flight for check-in",
-      "Download both airline apps (Thai Airways and Emirates)",
-      "Allow 3+ hours between flights if you have a connection",
-      "Consider travel insurance that covers separate bookings"
+      "Download BOTH airline apps (Thai Airways AND Emirates)",
+      "At airport: Check in for each flight separately",
+      "In Bangkok: Collect bags, exit, re-check with other airline",
+      "Consider travel insurance covering separate single tickets"
     ]
   };
 }

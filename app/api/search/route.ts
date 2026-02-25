@@ -165,7 +165,8 @@ export async function POST(request: NextRequest) {
       allOptions.push({
         id: `split-ticket-${Date.now()}`,
         strategy: "split-ticket-detailed",
-        strategyDescription: `Split Ticket: Book ${splitTicketDetails.legs.length} separate one-way tickets`,
+        strategyDescription: splitTicketDetails.title,
+        strategySubtitle: splitTicketDetails.subtitle,
         totalPrice: splitTicketDetails.totalPrice,
         perPersonPrice: splitTicketDetails.totalPrice,
         currency: splitTicketDetails.currency,
