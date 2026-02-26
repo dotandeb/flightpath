@@ -60,7 +60,7 @@ async function exampleBasicBooking() {
     console.log(`\nFlight ${idx + 1}:`);
     console.log(`  Price: ${flight.currency} ${flight.totalPrice}`);
     console.log(`  Route: ${flight.segments.map(s => `${s.origin.code} → ${s.destination.code}`).join(", ")}`);
-    console.log(`  Airline: ${flight.airlineName || flight.provider}`);
+    console.log(`  Airline: ${(flight as any).airlineName || flight.provider || 'Various'}`);
   });
   
   // Step 3: Select a flight
