@@ -100,6 +100,7 @@ export function generateSplitTicketExample(
           airport: "Heathrow Airport",
           airportCode: "LHR",
           city: "London",
+          country: "United Kingdom",
           time: "12:30",
           date: departureDate
         },
@@ -107,6 +108,7 @@ export function generateSplitTicketExample(
           airport: "Suvarnabhumi Airport",
           airportCode: "BKK",
           city: "Bangkok",
+          country: "Thailand",
           time: "06:00",
           date: addDays(departureDate, 1) // Next day
         },
@@ -115,7 +117,7 @@ export function generateSplitTicketExample(
         class: className,
         price: outboundPrice,
         currency: "GBP",
-        bookingUrl: "https://www.thaiairways.com",
+        bookingUrl: "https://www.thaiairways.com/en/book.html",
         baggage: {
           carryOn: isBusiness ? "14kg included" : "7kg included",
           checked: isBusiness ? "40kg included" : "30kg included"
@@ -130,6 +132,7 @@ export function generateSplitTicketExample(
           airport: "Suvarnabhumi Airport",
           airportCode: "BKK",
           city: "Bangkok",
+          country: "Thailand",
           time: "14:20",
           date: returnDate
         },
@@ -137,19 +140,22 @@ export function generateSplitTicketExample(
           airport: "Heathrow Airport",
           airportCode: "LHR",
           city: "London",
+          country: "United Kingdom",
           time: "20:45",
           date: returnDate // Same day
         },
         duration: "13h 25m",
         stops: 1,
         stopover: {
-          airport: "Dubai (DXB)",
+          airport: "Dubai International (DXB)",
+          city: "Dubai",
+          country: "United Arab Emirates",
           duration: "2h 30m"
         },
         class: className,
         price: returnPrice,
         currency: "GBP",
-        bookingUrl: "https://www.emirates.com",
+        bookingUrl: "https://www.emirates.com/uk/english/book/",
         baggage: {
           carryOn: isBusiness ? "14kg included" : "7kg included",
           checked: isBusiness ? "40kg included" : "30kg included"
@@ -160,30 +166,53 @@ export function generateSplitTicketExample(
       {
         step: 1,
         action: `🎫 Book SINGLE ${className.toUpperCase()} TICKET #1 - Outbound`,
-        details: `This is a SEPARATE ONE-WAY ${className.toUpperCase()} ticket. Book Thai Airways TG911 from LHR to BKK on ${departureDate}. Price: £${outboundPrice}. You will receive ONE confirmation number for this ticket only.`,
-        website: "Thai Airways",
-        url: "https://www.thaiairways.com"
+        details: `Book this ONE-WAY ${className.toUpperCase()} ticket FIRST:\n\n` +
+                 `✈️ Flight: Thai Airways TG911\n` +
+                 `📍 Route: London (LHR), United Kingdom → Bangkok (BKK), Thailand\n` +
+                 `📅 Date: ${departureDate}\n` +
+                 `🕐 Time: 12:30 → 06:00+1 (next day)\n` +
+                 `💺 Class: ${className}\n` +
+                 `💰 Price: £${outboundPrice}\n\n` +
+                 `⚠️ You will receive ONE confirmation number for THIS ticket only.`,
+        website: "Thai Airways Official",
+        url: "https://www.thaiairways.com/en/book.html"
       },
       {
         step: 2,
-        action: "✅ Complete Ticket #1 Booking",
-        details: "Use exact passenger name as on passport. Save confirmation number. This is ONLY for your outbound flight.",
-        website: "Thai Airways",
-        url: "https://www.thaiairways.com"
+        action: "✅ Confirm Ticket #1 Before Proceeding",
+        details: `WAIT for email confirmation from Thai Airways before booking ticket #2.\n\n` +
+                 `Check your email for:\n` +
+                 `• Confirmation number (6 characters)\n` +
+                 `• Flight details match: TG911 on ${departureDate}\n` +
+                 `• Passenger name is EXACTLY as on passport`,
+        website: "Check Email",
+        url: null
       },
       ...(returnDate ? [{
         step: 3,
-        action: `🎫 Book SINGLE ${className.toUpperCase()} TICKET #2 - Return (SEPARATE BOOKING)`,
-        details: `This is a DIFFERENT ONE-WAY ${className.toUpperCase()} ticket from a DIFFERENT AIRLINE. Book Emirates EK374 from BKK to LHR on ${returnDate}. Price: £${returnPrice}. Use EXACT SAME passenger name as Ticket #1. You will receive a SECOND confirmation number.`,
-        website: "Emirates",
-        url: "https://www.emirates.com"
+        action: `🎫 Book SINGLE ${className.toUpperCase()} TICKET #2 - Return`,
+        details: `Book this SECOND ONE-WAY ${className.toUpperCase()} ticket:\n\n` +
+                 `✈️ Flight: Emirates EK374\n` +
+                 `📍 Route: Bangkok (BKK), Thailand → London (LHR), United Kingdom\n` +
+                 `📅 Date: ${returnDate}\n` +
+                 `🕐 Time: 14:20 → 20:45 (same day)\n` +
+                 `⏱️ Stopover: Dubai (DXB), UAE - 2h 30m\n` +
+                 `💺 Class: ${className}\n` +
+                 `💰 Price: £${returnPrice}\n\n` +
+                 `⚠️ Use EXACT SAME passenger name as Ticket #1`,
+        website: "Emirates Official",
+        url: "https://www.emirates.com/uk/english/book/"
       },
       {
         step: 4,
-        action: "✅ Complete Ticket #2 Booking",
-        details: "Save this second confirmation number. You now have TWO SEPARATE SINGLE TICKETS on TWO DIFFERENT AIRLINES. They are NOT connected.",
-        website: "Emirates",
-        url: "https://www.emirates.com"
+        action: "✅ Save Both Confirmation Numbers",
+        details: `You now have TWO COMPLETELY SEPARATE TICKETS:\n\n` +
+                 `Ticket #1: Thai Airways (Outbound)\n` +
+                 `Ticket #2: Emirates (Return)\n\n` +
+                 `⚠️ These airlines do NOT know about each other.\n` +
+                 `⚠️ If one flight is cancelled, the other airline will NOT help you.`,
+        website: "Save Confirmations",
+        url: null
       }] : [])
     ],
     risks: [

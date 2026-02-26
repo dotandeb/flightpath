@@ -586,32 +586,54 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                               <div key={i} className="bg-white p-3 rounded-lg mb-2 border border-slate-200">
                                 <p className="text-sm font-bold text-sky-700">{leg.leg}</p>
                                 <p className="text-lg font-bold text-slate-900">{leg.airline} {leg.flightNumber}</p>
-                                <div className="mt-2 text-sm">
-                                  <p className="font-semibold">{leg.departure.airportCode} → {leg.arrival.airportCode}</p>
-                                  <p className="text-slate-600">{leg.departure.time} → {leg.arrival.time} ({leg.duration})</p>
-                                  <p className="text-slate-600">{leg.departure.date}</p>
-                                  {leg.stopover && (
-                                    <p className="text-amber-600 text-xs">⏱️ Stopover: {leg.stopover.airport} ({leg.stopover.duration})</p>
-                                  )}
+                                
+                                {/* Departure */}
+                                <div className="mt-2 bg-slate-50 p-2 rounded">
+                                  <p className="text-xs text-slate-500">FROM:</p>
+                                  <p className="font-semibold">{leg.departure.city}, {leg.departure.country}</p>
+                                  <p className="text-sm">{leg.departure.airport} ({leg.departure.airportCode})</p>
+                                  <p className="text-sm text-slate-600">{leg.departure.time} on {leg.departure.date}</p>
                                 </div>
+                                
+                                {/* Arrow */}
+                                <div className="text-center my-1">
+                                  <span className="text-slate-400">↓ {leg.duration} ↓</span>
+                                </div>
+                                
+                                {/* Arrival */}
+                                <div className="bg-slate-50 p-2 rounded">
+                                  <p className="text-xs text-slate-500">TO:</p>
+                                  <p className="font-semibold">{leg.arrival.city}, {leg.arrival.country}</p>
+                                  <p className="text-sm">{leg.arrival.airport} ({leg.arrival.airportCode})</p>
+                                  <p className="text-sm text-slate-600">{leg.arrival.time} on {leg.arrival.date}</p>
+                                </div>
+                                
+                                {/* Stopover */}
+                                {leg.stopover && (
+                                  <div className="mt-2 bg-amber-50 p-2 rounded border border-amber-200">
+                                    <p className="text-xs text-amber-700">⏱️ STOPOVER: {leg.stopover.airport}</p>
+                                    <p className="text-xs text-amber-600">{leg.stopover.city}, {leg.stopover.country}</p>
+                                    <p className="text-xs text-amber-600">Duration: {leg.stopover.duration}</p>
+                                  </div>
+                                )}
+                                
                                 <p className="text-green-600 font-bold mt-2">£{leg.price} - {leg.class}</p>
                                 <p className="text-xs text-slate-500">Baggage: {leg.baggage.carryOn}, {leg.baggage.checked}</p>
                                 
-                                <a 
-                                  href={leg.bookingUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="mt-2 inline-block bg-sky-500 text-white text-xs font-bold py-1 px-3 rounded hover:bg-sky-600"
+                                <button
+                                  onClick={() => window.open(leg.bookingUrl, '_blank')}
+                                  className="mt-2 w-full bg-sky-500 text-white text-sm font-bold py-2 px-3 rounded hover:bg-sky-600 flex items-center justify-center gap-2"
                                 >
-                                  Book on {leg.airline} →
-                                </a>
+                                  <ExternalLink className="w-4 h-4" />
+                                  Book {leg.class} on {leg.airline}
+                                </button>
                               </div>
                             ))}
                           </div>
                           
                           {/* Step by Step Booking */}
                           <div className="mb-4">
-                            <p className="text-xs font-bold text-slate-800 uppercase mb-2">📝 STEP-BY-STEP BOOKING:</p>
+                            <p className="text-xs font-bold text-slate-800 uppercase mb-2">📝 DETAILED BOOKING STEPS:</p>
                             <ol className="space-y-3">
                               {splitDetails.bookingInstructions.map((inst: any, i: number) => (
                                 <li key={i} className="bg-white p-3 rounded-lg border border-slate-200">
@@ -619,15 +641,16 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
                                     <span className="flex-shrink-0 w-6 h-6 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{inst.step}</span>
                                     <div className="flex-1">
                                       <p className="text-sm font-bold text-slate-900">{inst.action}</p>
-                                      <p className="text-xs text-slate-600 mt-1">{inst.details}</p>
-                                      <a 
-                                        href={inst.url} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-sky-600 hover:underline mt-1 inline-block"
-                                      >
-                                        🌐 Open {inst.website}
-                                      </a>
+                                      <p className="text-xs text-slate-600 mt-1 whitespace-pre-line">{inst.details}</p>
+                                      {inst.url && (
+                                        <button
+                                          onClick={() => window.open(inst.url, '_blank')}
+                                          className="mt-2 bg-green-500 text-white text-xs font-bold py-1 px-3 rounded hover:bg-green-600 flex items-center gap-1 w-fit"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                          Open {inst.website}
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 </li>
