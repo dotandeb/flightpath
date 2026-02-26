@@ -404,6 +404,18 @@ function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (ur
         </div>
       </div>
 
+      {/* More Options Banner */}
+      {result.moreOptionsAvailable && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <p className="font-semibold text-amber-800">
+              👇 {result.totalOptions - 1} more option{result.totalOptions - 1 !== 1 ? 's' : ''} below - Scroll down to see all deals
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Flight Options */}
       <div className="space-y-4">
         <h3 className="font-semibold text-slate-900 flex items-center gap-2">

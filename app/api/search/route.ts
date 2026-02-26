@@ -246,16 +246,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Sort all options by price
-    allOptions.sort((a, b) => a.totalPrice - b.totalPrice);
+    // Sort: split tickets first, then by price
+    allOptions.sort((a, b) => {
+      // Force split-ticket-detailed to always be first
+      if (a.strategy === 'split-ticket-detailed' && b.strategy !== 'split-ticket-detailed') return -1;
+      if (b.strategy === 'split-ticket-detailed' && a.strategy !== 'split-ticket-detailed') return 1;
+      // Then sort by price
+      return a.totalPrice - b.totalPrice;
+    });
 
     if (allOptions.length > 0) {
       const bestOption = allOptions[0];
       
       return NextResponse.json({
-        standardOption: allOptions.find(o => o.strategy === "rss-deal") || allOptions[0],
+        standardOption: allOptions.find(o => o.strategy === "split-ticket-detailed") || allOptions[0],
         bestOption,
         allOptions,
+        moreOptionsAvailable: allOptions.length > 1,
+        totalOptions: allOptions.length,
         optimizedOptions: allOptions.filter(o => o !== bestOption),
         priceRange: {
           min: Math.min(...allOptions.map(o => o.totalPrice)),

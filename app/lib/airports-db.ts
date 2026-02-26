@@ -5,9 +5,59 @@ export interface Airport {
   city: string;
   country: string;
   countryCode: string;
+  isCityWide?: boolean; // True if this represents all airports in the city
 }
 
 export const AIRPORTS: Record<string, Airport> = {
+  // UK - City-wide options (all airports)
+  "LON": { code: "LON", name: "All London Airports", city: "London", country: "United Kingdom", countryCode: "GB", isCityWide: true },
+  "PAR": { code: "PAR", name: "All Paris Airports", city: "Paris", country: "France", countryCode: "FR", isCityWide: true },
+  "NYC": { code: "NYC", name: "All New York Airports", city: "New York", country: "United States", countryCode: "US", isCityWide: true },
+  "TYO": { code: "TYO", name: "All Tokyo Airports", city: "Tokyo", country: "Japan", countryCode: "JP", isCityWide: true },
+  "BER": { code: "BER", name: "All Berlin Airports", city: "Berlin", country: "Germany", countryCode: "DE", isCityWide: true },
+  "ROM": { code: "ROM", name: "All Rome Airports", city: "Rome", country: "Italy", countryCode: "IT", isCityWide: true },
+  "MIL": { code: "MIL", name: "All Milan Airports", city: "Milan", country: "Italy", countryCode: "IT", isCityWide: true },
+  "BJS": { code: "BJS", name: "All Beijing Airports", city: "Beijing", country: "China", countryCode: "CN", isCityWide: true },
+  "SHA": { code: "SHA", name: "All Shanghai Airports", city: "Shanghai", country: "China", countryCode: "CN", isCityWide: true },
+  "CHI": { code: "CHI", name: "All Chicago Airports", city: "Chicago", country: "United States", countryCode: "US", isCityWide: true },
+  "WAS": { code: "WAS", name: "All Washington DC Airports", city: "Washington DC", country: "United States", countryCode: "US", isCityWide: true },
+  "YTO": { code: "YTO", name: "All Toronto Airports", city: "Toronto", country: "Canada", countryCode: "CA", isCityWide: true },
+  "YVR": { code: "YVR", name: "Vancouver (All Airports)", city: "Vancouver", country: "Canada", countryCode: "CA", isCityWide: true },
+  "SYD": { code: "SYD", name: "All Sydney Airports", city: "Sydney", country: "Australia", countryCode: "AU", isCityWide: true },
+  "MEL": { code: "MEL", name: "All Melbourne Airports", city: "Melbourne", country: "Australia", countryCode: "AU", isCityWide: true },
+  "DXB": { code: "DXB", name: "All Dubai Airports", city: "Dubai", country: "United Arab Emirates", countryCode: "AE", isCityWide: true },
+  "CAI": { code: "CAI", name: "All Cairo Airports", city: "Cairo", country: "Egypt", countryCode: "EG", isCityWide: true },
+  "JNB": { code: "JNB", name: "All Johannesburg Airports", city: "Johannesburg", country: "South Africa", countryCode: "ZA", isCityWide: true },
+  "CPT": { code: "CPT", name: "All Cape Town Airports", city: "Cape Town", country: "South Africa", countryCode: "ZA", isCityWide: true },
+  
+  // UK - Individual airports
+  "LHR": { code: "LHR", name: "Heathrow Airport", city: "London", country: "United Kingdom", countryCode: "GB" },
+  "LGW": { code: "LGW", name: "Gatwick Airport", city: "London", country: "United Kingdom", countryCode: "GB" },
+  "STN": { code: "STN", name: "Stansted Airport", city: "London", country: "United Kingdom", countryCode: "GB" },
+  "LTN": { code: "LTN", name: "Luton Airport", city: "London", country: "United Kingdom", countryCode: "GB" },
+  "LCY": { code: "LCY", name: "London City Airport", city: "London", country: "United Kingdom", countryCode: "GB" },
+  "SEN": { code: "SEN", name: "Southend Airport", city: "London", country: "United Kingdom", countryCode: "GB" },
+  "MAN": { code: "MAN", name: "Manchester Airport", city: "Manchester", country: "United Kingdom", countryCode: "GB" },
+  "EDI": { code: "EDI", name: "Edinburgh Airport", city: "Edinburgh", country: "United Kingdom", countryCode: "GB" },
+  "BHX": { code: "BHX", name: "Birmingham Airport", city: "Birmingham", country: "United Kingdom", countryCode: "GB" },
+  "GLA": { code: "GLA", name: "Glasgow Airport", city: "Glasgow", country: "United Kingdom", countryCode: "GB" },
+  "BRS": { code: "BRS", name: "Bristol Airport", city: "Bristol", country: "United Kingdom", countryCode: "GB" },
+  "NCL": { code: "NCL", name: "Newcastle Airport", city: "Newcastle", country: "United Kingdom", countryCode: "GB" },
+  "LBA": { code: "LBA", name: "Leeds Bradford Airport", city: "Leeds", country: "United Kingdom", countryCode: "GB" },
+  "LPL": { code: "LPL", name: "Liverpool Airport", city: "Liverpool", country: "United Kingdom", countryCode: "GB" },
+  "DUB": { code: "DUB", name: "Dublin Airport", city: "Dublin", country: "Ireland", countryCode: "IE" },
+  "BFS": { code: "BFS", name: "Belfast Airport", city: "Belfast", country: "United Kingdom", countryCode: "GB" },
+  
+  // France
+  "CDG": { code: "CDG", name: "Charles de Gaulle Airport", city: "Paris", country: "France", countryCode: "FR" },
+  "ORY": { code: "ORY", name: "Orly Airport", city: "Paris", country: "France", countryCode: "FR" },
+  "BVA": { code: "BVA", name: "Beauvais Airport", city: "Paris", country: "France", countryCode: "FR" },
+  "NCE": { code: "NCE", name: "Nice Côte d'Azur Airport", city: "Nice", country: "France", countryCode: "FR" },
+  "LYS": { code: "LYS", name: "Lyon-Saint Exupéry Airport", city: "Lyon", country: "France", countryCode: "FR" },
+  "MRS": { code: "MRS", name: "Marseille Airport", city: "Marseille", country: "France", countryCode: "FR" },
+  "TLS": { code: "TLS", name: "Toulouse Airport", city: "Toulouse", country: "France", countryCode: "FR" },
+  "BOD": { code: "BOD", name: "Bordeaux Airport", city: "Bordeaux", country: "France", countryCode: "FR" },
+  
   // UK
   "LHR": { code: "LHR", name: "Heathrow Airport", city: "London", country: "United Kingdom", countryCode: "GB" },
   "LGW": { code: "LGW", name: "Gatwick Airport", city: "London", country: "United Kingdom", countryCode: "GB" },
@@ -42,7 +92,6 @@ export const AIRPORTS: Record<string, Airport> = {
   // Germany
   "FRA": { code: "FRA", name: "Frankfurt Airport", city: "Frankfurt", country: "Germany", countryCode: "DE" },
   "MUC": { code: "MUC", name: "Munich Airport", city: "Munich", country: "Germany", countryCode: "DE" },
-  "BER": { code: "BER", name: "Berlin Brandenburg Airport", city: "Berlin", country: "Germany", countryCode: "DE" },
   "HAM": { code: "HAM", name: "Hamburg Airport", city: "Hamburg", country: "Germany", countryCode: "DE" },
   "DUS": { code: "DUS", name: "Düsseldorf Airport", city: "Düsseldorf", country: "Germany", countryCode: "DE" },
   "CGN": { code: "CGN", name: "Cologne Bonn Airport", city: "Cologne", country: "Germany", countryCode: "DE" },
@@ -247,6 +296,44 @@ export function getAirportDisplay(code: string): string {
 }
 
 /**
+ * Get all airports for a city when using city-wide code
+ * Returns individual airport codes for city-wide codes like LON, PAR, NYC
+ */
+export function getAirportsForCity(cityCode: string): string[] {
+  const cityAirports: Record<string, string[]> = {
+    "LON": ["LHR", "LGW", "STN", "LTN", "LCY", "SEN"],
+    "PAR": ["CDG", "ORY", "BVA"],
+    "NYC": ["JFK", "LGA", "EWR"],
+    "TYO": ["NRT", "HND"],
+    "BER": ["BER", "SXF"],
+    "ROM": ["FCO", "CIA"],
+    "MIL": ["MXP", "LIN", "BGY"],
+    "BJS": ["PEK", "PKX"],
+    "SHA": ["PVG", "SHA"],
+    "CHI": ["ORD", "MDW"],
+    "WAS": ["DCA", "IAD", "BWI"],
+    "YTO": ["YYZ", "YTZ"],
+    "YVR": ["YVR", "YXX"],
+    "SYD": ["SYD", "BWU"],
+    "MEL": ["MEL", "AVV"],
+    "DXB": ["DXB", "DWC", "SHJ"],
+    "CAI": ["CAI"],
+    "JNB": ["JNB", "HLA"],
+    "CPT": ["CPT"],
+  };
+  
+  return cityAirports[cityCode.toUpperCase()] || [cityCode];
+}
+
+/**
+ * Check if a code is a city-wide option
+ */
+export function isCityWideCode(code: string): boolean {
+  const airport = getAirport(code);
+  return airport?.isCityWide || false;
+}
+
+/**
  * Get airport with city and country
  */
 export function getAirportFull(code: string): { code: string; name: string; city: string; country: string } {
@@ -258,4 +345,18 @@ export function getAirportFull(code: string): { code: string; name: string; city
     city: airport.city,
     country: airport.country,
   };
+}
+
+/**
+ * Get display name for search box (shows city options)
+ */
+export function getSearchDisplay(code: string): string {
+  const airport = getAirport(code);
+  if (!airport) return code;
+  
+  if (airport.isCityWide) {
+    return `${airport.city} (${airport.code}) - All Airports`;
+  }
+  
+  return `${airport.city} - ${airport.name} (${code})`;
 }
