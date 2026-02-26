@@ -2,7 +2,7 @@
 // Uses your existing credentials for real-time price testing
 
 import Amadeus from "amadeus";
-import { generateBookingLinks, getAirlineName } from "./booking-links";
+import { generateAllBookingLinks, getAirlineName, generateBookingLinks } from "./booking-links";
 
 const amadeus = new Amadeus({
   clientId: process.env.AMADEUS_API_KEY || "",

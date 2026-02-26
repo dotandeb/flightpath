@@ -169,8 +169,58 @@ export function generateAllBookingLinks(params: SkyscannerParams) {
 }
 
 /**
- * Generate detailed step-by-step with clickable links
+ * Get airline name from code
  */
+export function getAirlineName(code: string): string {
+  const airlines: Record<string, string> = {
+    "TG": "Thai Airways",
+    "EK": "Emirates",
+    "BA": "British Airways",
+    "LH": "Lufthansa",
+    "AF": "Air France",
+    "KL": "KLM",
+    "SQ": "Singapore Airlines",
+    "CX": "Cathay Pacific",
+    "QR": "Qatar Airways",
+    "EY": "Etihad",
+    "VS": "Virgin Atlantic",
+    "AA": "American Airlines",
+    "DL": "Delta",
+    "UA": "United",
+  };
+  return airlines[code] || code;
+}
+
+/**
+ * Generate booking links for a specific airline and route
+ * Legacy function for compatibility
+ */
+export function generateBookingLinks(params: {
+  origin: string;
+  destination: string;
+  departureDate: string;
+  returnDate?: string;
+  adults?: number;
+  children?: number;
+  infants?: number;
+  airline?: string;
+  price?: number;
+}) {
+  const allLinks = generateAllBookingLinks({
+    origin: params.origin,
+    destination: params.destination,
+    departureDate: params.departureDate,
+    returnDate: params.returnDate,
+    adults: params.adults || 1,
+    children: params.children || 0,
+  });
+
+  return [
+    { provider: "Skyscanner", price: params.price || 0, url: allLinks.skyscanner.url },
+    { provider: "Google Flights", price: params.price || 0, url: allLinks.googleFlights.url },
+    { provider: "Kayak", price: params.price || 0, url: allLinks.kayak.url },
+  ];
+}
 export function generateDetailedBookingSteps(
   origin: string,
   destination: string,

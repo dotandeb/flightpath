@@ -10,6 +10,7 @@ export interface ExactFlightDetails {
     airport: string;
     airportCode: string;
     city: string;
+    country: string;
     time: string;
     date: string;
   };
@@ -17,6 +18,7 @@ export interface ExactFlightDetails {
     airport: string;
     airportCode: string;
     city: string;
+    country: string;
     time: string;
     date: string;
   };
@@ -24,6 +26,8 @@ export interface ExactFlightDetails {
   stops: number;
   stopover?: {
     airport: string;
+    city: string;
+    country: string;
     duration: string;
   };
   aircraft?: string;
@@ -186,7 +190,7 @@ export function generateSplitTicketExample(
                  `• Flight details match: TG911 on ${departureDate}\n` +
                  `• Passenger name is EXACTLY as on passport`,
         website: "Check Email",
-        url: null
+        url: ""
       },
       ...(returnDate ? [{
         step: 3,
@@ -212,7 +216,7 @@ export function generateSplitTicketExample(
                  `⚠️ These airlines do NOT know about each other.\n` +
                  `⚠️ If one flight is cancelled, the other airline will NOT help you.`,
         website: "Save Confirmations",
-        url: null
+        url: ""
       }] : [])
     ],
     risks: [
