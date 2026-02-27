@@ -1,58 +1,80 @@
+// Integrated Search API with Validation
+// Uses global airports, metro search, and flight validation
+
 import { NextRequest, NextResponse } from "next/server";
-import {
-  searchAmadeusFlights,
-  transformAmadeusResults,
-  runAcidTest,
-} from "@/app/lib/amadeus-api";
-import {
-  searchAllStrategies,
-  getApiUsageStats,
-} from "@/app/lib/arbitrage-engine";
-import {
-  generateSampleDataResults,
-} from "@/app/lib/travelpayouts-data-api";
-import { getSampleDeals } from "@/app/lib/deal-scraper";
-import { getAllRSSDeals, getDealsForRoute } from "@/app/lib/rss-scraper";
-import { getAirportFull, getAirportDisplay } from "@/app/lib/airports-db";
-import { generateSplitTicketExample, generateNearbyAirportExample, generateFlexibleDatesExample } from "@/app/lib/enhanced-deals";
+import { getAirportByIATA, getMetroAirports, searchAirports } from "@/app/lib/global-airports";
+import { getMetroArea, findMetroByName } from "@/app/lib/metro-areas";
+import { validateFlight } from "@/app/lib/flight-validation";
+import { searchAmadeusFlights } from "@/app/lib/amadeus-api";
 
 // ============================================
-// FLIGHT SEARCH API - RSS DEALS + ARBITRAGE
+// PRODUCTION SEARCH API - VALIDATED DATA ONLY
 // ============================================
-// 1. Fetches real deals from RSS (SecretFlying, Fly4Free, HolidayPirates)
-// 2. Runs arbitrage strategies on deals
-// 3. Falls back to Amadeus if env vars set
-// 4. Final fallback to sample data
 
-const USE_AMADEUS = process.env.USE_AMADEUS === "true";
-const USE_ARBITRAGE = process.env.USE_ARBITRAGE !== "false";
+interface SearchParams {
+  origin: string;
+  destination: string;
+  departureDate: string;
+  returnDate?: string;
+  adults?: number;
+  cabinClass?: string;
+}
 
 /**
- * Generate "how to find" instructions for broken links
+ * Expand search query to airports
+ * Handles metro areas (e.g., "London" -> LHR, LGW, STN, LTN)
  */
-function generateHowToFindText(origin: string, destination: string, source: string): string {
-  const instructions: Record<string, string> = {
-    "SecretFlying": `Go to secretflying.com and search for "${origin} to ${destination}". Sort by most recent.`,
-    "Fly4Free": `Go to fly4free.com and use their search box for "${origin}-${destination}". Check the flight deals section.`,
-    "HolidayPirates": `Go to holidaypirates.com and search for flights from ${origin} to ${destination}.`,
-    "AirfareWatchdog": `Go to airfarewatchdog.com and set up a fare alert for ${origin} to ${destination}.`,
-    "ThriftyTraveler": `Go to thriftytraveler.com and search their deals for ${origin} to ${destination}.`,
-    "Skyscanner": `Go to skyscanner.net, enter ${origin} to ${destination}, and use their "whole month" view to find cheapest dates.`,
-    "GoogleFlights": `Go to flights.google.com, search ${origin} to ${destination}, and track prices for your dates.`,
-    "Kayak": `Go to kayak.com and search ${origin} to ${destination}. Use their price forecast feature.`,
-  };
+function expandToAirports(query: string): {
+  isMetro: boolean;
+  airports: string[];
+  displayName: string;
+} {
+  // Check if it's a metro area name
+  const metro = findMetroByName(query);
+  if (metro) {
+    return {
+      isMetro: true,
+      airports: metro.airports,
+      displayName: `${metro.name} (All Airports)`
+    };
+  }
   
-  return instructions[source] || `Go to ${source.toLowerCase().replace(/\s/g, '')}.com and search for flights from ${origin} to ${destination}.`;
+  // Check if it's a metro code
+  const metroByCode = getMetroArea(query);
+  if (metroByCode) {
+    return {
+      isMetro: true,
+      airports: metroByCode.airports,
+      displayName: `${metroByCode.name} (All Airports)`
+    };
+  }
+  
+  // Check if it's a valid airport
+  const airport = getAirportByIATA(query);
+  if (airport) {
+    return {
+      isMetro: false,
+      airports: [airport.iata],
+      displayName: `${airport.city} (${airport.iata})`
+    };
+  }
+  
+  // Fallback: treat as IATA code
+  return {
+    isMetro: false,
+    airports: [query.toUpperCase()],
+    displayName: query.toUpperCase()
+  };
 }
 
 /**
  * POST /api/search
- * Main search with RSS deals + arbitrage
+ * Production search with validation
  */
 export async function POST(request: NextRequest) {
   try {
-    const params = await request.json();
-
+    const params: SearchParams = await request.json();
+    
     // Validate required fields
     if (!params.origin || !params.destination || !params.departureDate) {
       return NextResponse.json(
@@ -60,244 +82,110 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Get airport details
-    const originAirport = getAirportFull(params.origin);
-    const destAirport = getAirportFull(params.destination);
-
-    // 1. Try RSS deal sites first (real deals)
-    console.log("[Search] Fetching RSS deals...");
-    let rssDeals: any[] = [];
+    
+    console.log(`[Search] ${params.origin} -> ${params.destination} on ${params.departureDate}`);
+    
+    // Expand metro areas to airports
+    const originExpanded = expandToAirports(params.origin);
+    const destExpanded = expandToAirports(params.destination);
+    
+    console.log(`[Search] Origin: ${originExpanded.displayName} -> ${originExpanded.airports.join(", ")}`);
+    console.log(`[Search] Destination: ${destExpanded.displayName} -> ${destExpanded.airports.join(", ")}`);
+    
+    // For now, use first airport from each (primary airport)
+    const originAirport = originExpanded.airports[0];
+    const destAirport = destExpanded.airports[0];
+    
+    // Try Amadeus API first (real data)
+    let flights: any[] = [];
+    let dataSource = "none";
     
     try {
-      rssDeals = await getDealsForRoute(params.origin, params.destination);
-      console.log(`[Search] Found ${rssDeals.length} RSS deals`);
-    } catch (rssError) {
-      console.log("[Search] RSS fetch failed, using sample deals");
-    }
-
-    // If no RSS deals, use sample deals that MATCH the route
-    let deals = rssDeals;
-    if (deals.length === 0) {
-      const sampleDeals = getSampleDeals().filter(d => 
-        d.from === params.origin && d.to === params.destination
-      );
+      const amadeusResult = await searchAmadeusFlights({
+        origin: originAirport,
+        destination: destAirport,
+        departureDate: params.departureDate,
+        returnDate: params.returnDate,
+        adults: params.adults || 1,
+        travelClass: (params.cabinClass as any) || "ECONOMY",
+      });
       
-      if (sampleDeals.length > 0) {
-        deals = sampleDeals;
-      } else {
-        // Generate example split ticket for this route
-        console.log("[Search] No deals found, generating example split ticket");
+      if (amadeusResult && amadeusResult.length > 0) {
+        flights = amadeusResult;
+        dataSource = "amadeus";
+        console.log(`[Search] Found ${flights.length} flights from Amadeus`);
       }
+    } catch (e) {
+      console.log("[Search] Amadeus API failed:", e);
     }
-
-    const allOptions: any[] = [];
-
-    // Add RSS/sample deals
-    if (deals.length > 0) {
-      const dealOptions = deals.map(deal => {
-        const fromAirport = getAirportFull(deal.fromCode || deal.from);
-        const toAirport = getAirportFull(deal.toCode || deal.to);
-        
-        return {
-          id: `deal-${deal.source}-${Date.now()}`,
-          strategy: "rss-deal",
-          strategyDescription: `${deal.source}: ${deal.route} ${deal.currency}${deal.price}`,
-          totalPrice: deal.price,
-          perPersonPrice: deal.price,
-          currency: deal.currency,
-          confidence: deal.confidence || "medium",
-          confidenceReason: deal.confidence === "high" 
-            ? "Recent deal from verified source. Price likely accurate."
-            : deal.confidence === "medium"
-            ? "Deal may be expired or dates limited. Verify on website."
-            : "Deal may be expired. Use as reference only.",
-          segments: [{
-            id: `deal-segment-1`,
-            origin: { 
-              code: fromAirport.code, 
-              name: fromAirport.name, 
-              city: fromAirport.city, 
-              country: fromAirport.country, 
-              lat: 0, 
-              lng: 0 
-            },
-            destination: { 
-              code: toAirport.code, 
-              name: toAirport.name, 
-              city: toAirport.city, 
-              country: toAirport.country, 
-              lat: 0, 
-              lng: 0 
-            },
-            departureTime: `${params.departureDate}T10:00:00`,
-            arrivalTime: `${params.departureDate}T14:00:00`,
-            airline: "Various",
-            airlineName: deal.source,
-            flightNumber: "DEAL001",
-            duration: "PT4H",
-            durationMinutes: 240,
-            stops: 0,
-            aircraft: "",
-            cabinClass: params.travelClass || "ECONOMY",
-            bookingClass: "",
-          }],
-          bookingLinks: [{
-            airline: deal.source,
-            price: deal.price,
-            url: deal.url,
-          }],
-          savingsVsStandard: 0,
-          risks: ["Deal may expire quickly", "Verify dates before booking"],
-          _source: "rss-deal",
-          _dealUrl: deal.url,
-          _publishedAt: deal.publishedAt,
-          _howToFind: generateHowToFindText(params.origin, params.destination, deal.source),
-        };
-      });
-      
-      allOptions.push(...dealOptions);
-    }
-
-    // 2. Generate enhanced split ticket example
-    if (params.returnDate) {
-      const splitTicketDetails = generateSplitTicketExample(
-        params.origin,
-        params.destination,
-        params.departureDate,
-        params.returnDate,
-        params.travelClass || "ECONOMY"
-      );
-      
-      allOptions.push({
-        id: `split-ticket-${Date.now()}`,
-        strategy: "split-ticket-detailed",
-        strategyDescription: splitTicketDetails.title,
-        strategySubtitle: splitTicketDetails.subtitle,
-        totalPrice: splitTicketDetails.totalPrice,
-        perPersonPrice: splitTicketDetails.totalPrice,
-        currency: splitTicketDetails.currency,
-        confidence: "medium", // Example data, not real-time
-        confidenceReason: "Based on historical pricing data. Actual prices may vary. Check airline website for current availability.",
-        segments: splitTicketDetails.legs.map(leg => ({
-          id: `split-${leg.leg}`,
-          origin: {
-            code: leg.departure.airportCode,
-            name: leg.departure.airport,
-            city: leg.departure.city,
-            country: "",
-            lat: 0,
-            lng: 0
-          },
-          destination: {
-            code: leg.arrival.airportCode,
-            name: leg.arrival.airport,
-            city: leg.arrival.city,
-            country: "",
-            lat: 0,
-            lng: 0
-          },
-          departureTime: `${leg.departure.date}T${leg.departure.time}`,
-          arrivalTime: `${leg.arrival.date}T${leg.arrival.time}`,
-          airline: leg.airlineCode,
-          airlineName: leg.airline,
-          flightNumber: leg.flightNumber,
-          duration: leg.duration,
-          durationMinutes: parseDuration(leg.duration),
-          stops: leg.stops,
-          aircraft: leg.aircraft || "",
-          cabinClass: leg.class,
-          bookingClass: "",
-        })),
-        bookingLinks: splitTicketDetails.legs.map(leg => ({
-          airline: leg.airline,
-          price: leg.price,
-          url: leg.bookingUrl
-        })),
-        savingsVsStandard: splitTicketDetails.savingsVsStandard,
-        risks: splitTicketDetails.risks,
-        _source: "split-ticket-example",
-        _splitTicketDetails: splitTicketDetails,
-        _howToFind: "Follow the step-by-step instructions below",
-      });
-    }
-
-    // 3. Try Amadeus arbitrage for comparison
-    if (USE_AMADEUS && USE_ARBITRAGE) {
-      try {
-        const arbitrageResult = await searchAllStrategies({
-          origin: params.origin,
-          destination: params.destination,
+    
+    // If no Amadeus results, return empty with message
+    if (flights.length === 0) {
+      return NextResponse.json({
+        error: "No flights found",
+        message: "No validated flights available for this route. Try different dates or airports.",
+        searchParams: {
+          origin: originExpanded,
+          destination: destExpanded,
           departureDate: params.departureDate,
           returnDate: params.returnDate,
-          adults: params.adults || 1,
-          currency: params.currency || "GBP",
-        });
-
-        if (arbitrageResult.allOptions && arbitrageResult.allOptions.length > 0) {
-          const arbitrageOptions = arbitrageResult.allOptions.map((opt: any) => ({
-            ...opt,
-            strategy: `amadeus-${opt.strategy}`,
-          }));
-          allOptions.push(...arbitrageOptions);
-        }
-      } catch (e) {
-        console.log("[Search] Amadeus arbitrage failed");
-      }
+        },
+        _dataSource: "none",
+        _validated: true,
+      }, { status: 404 });
     }
-
-    // Sort: split tickets first, then by price
-    allOptions.sort((a, b) => {
-      // Force split-ticket-detailed to always be first
-      if (a.strategy === 'split-ticket-detailed' && b.strategy !== 'split-ticket-detailed') return -1;
-      if (b.strategy === 'split-ticket-detailed' && a.strategy !== 'split-ticket-detailed') return 1;
-      // Then sort by price
+    
+    // Validate each flight
+    const validatedFlights = flights.map(flight => {
+      // Validate the flight
+      const validation = validateFlight({
+        flightNumber: flight.flightNumber,
+        airline: flight.segments[0]?.airline,
+        origin: flight.segments[0]?.origin?.code,
+        destination: flight.segments[0]?.destination?.code,
+        departureTime: flight.segments[0]?.departureTime,
+        arrivalTime: flight.segments[0]?.arrivalTime,
+        duration: flight.segments[0]?.duration,
+        aircraft: flight.segments[0]?.aircraft,
+        source: 'amadeus-api',
+        fetchedAt: new Date(),
+      });
+      
+      return {
+        ...flight,
+        _validation: validation,
+        _isValid: validation.isValid,
+        _confidence: validation.confidence,
+      };
+    }).filter(f => f._isValid); // Only return valid flights
+    
+    console.log(`[Search] ${validatedFlights.length} flights passed validation`);
+    
+    // Sort by confidence then price
+    validatedFlights.sort((a, b) => {
+      if (b._confidence !== a._confidence) {
+        return b._confidence - a._confidence;
+      }
       return a.totalPrice - b.totalPrice;
     });
-
-    if (allOptions.length > 0) {
-      const bestOption = allOptions[0];
-      
-      return NextResponse.json({
-        standardOption: allOptions.find(o => o.strategy === "split-ticket-detailed") || allOptions[0],
-        bestOption,
-        allOptions,
-        moreOptionsAvailable: allOptions.length > 1,
-        totalOptions: allOptions.length,
-        optimizedOptions: allOptions.filter(o => o !== bestOption),
-        priceRange: {
-          min: Math.min(...allOptions.map(o => o.totalPrice)),
-          max: Math.max(...allOptions.map(o => o.totalPrice)),
-          currency: params.currency || "GBP",
-        },
-        searchParams: {
-          ...params,
-          originDisplay: getAirportDisplay(params.origin),
-          destinationDisplay: getAirportDisplay(params.destination),
-        },
-        _dataSource: rssDeals.length > 0 ? "rss-deals" : "generated-examples",
-        _realTimeData: rssDeals.length > 0,
-      });
-    }
-
-    // 4. Final fallback to sample data
-    console.log("[Search] Using sample data fallback");
-    const sampleResult = generateSampleDataResults(params);
     
     return NextResponse.json({
-      ...sampleResult,
+      flights: validatedFlights,
+      count: validatedFlights.length,
       searchParams: {
-        ...params,
-        originDisplay: getAirportDisplay(params.origin),
-        destinationDisplay: getAirportDisplay(params.destination),
+        origin: originExpanded,
+        destination: destExpanded,
+        departureDate: params.departureDate,
+        returnDate: params.returnDate,
+        cabinClass: params.cabinClass || "ECONOMY",
       },
-      _dataSource: "sample-data",
-      _cacheWarning: "Demo data - No real deals found",
+      _dataSource: dataSource,
+      _validated: true,
+      _timestamp: new Date().toISOString(),
     });
-
+    
   } catch (error: any) {
     console.error("[Search] Error:", error);
-    
     return NextResponse.json(
       { error: error.message || "Search failed" },
       { status: 500 }
@@ -305,18 +193,27 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function parseDuration(duration: string): number {
-  // Parse "11h 30m" to minutes
-  const match = duration.match(/(\d+)h\s*(\d+)m/);
-  if (!match) return 0;
-  return parseInt(match[1]) * 60 + parseInt(match[2]);
-}
-
 /**
- * GET /api/search/test
- * Run acid test to verify Amadeus API works
+ * GET /api/search/airports
+ * Search airports by query
  */
 export async function GET(request: NextRequest) {
-  const testResult = await runAcidTest();
-  return NextResponse.json(testResult);
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get("q");
+  
+  if (!query) {
+    return NextResponse.json({ error: "Query required" }, { status: 400 });
+  }
+  
+  // Search airports
+  const airports = searchAirports(query);
+  
+  // Search metro areas
+  const metro = findMetroByName(query);
+  
+  return NextResponse.json({
+    query,
+    airports: airports.slice(0, 10), // Limit to 10
+    metroArea: metro || null,
+  });
 }
