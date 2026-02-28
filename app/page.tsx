@@ -355,8 +355,29 @@ function StrategyCard({ icon, title, description, savings }: { icon: string; tit
 }
 
 function ResultsDisplay({ result, onBookClick }: { result: any; onBookClick: (url?: string, searchParams?: any) => void }) {
-  if (!result || result.error) {
-    return <div className="p-4 bg-red-50 rounded-lg text-red-700">{result?.error || "Error"}</div>;
+  if (!result) {
+    return <div className="p-4 bg-red-50 rounded-lg text-red-700">No results</div>;
+  }
+  
+  if (result.error || !result.bestOption) {
+    return (
+      <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl">
+        <p className="font-semibold text-amber-800 mb-2">No flights found</p>
+        <p className="text-amber-700 text-sm">
+          {result.message || "No validated flights available for this route. Try different dates or airports."}
+        </p>
+        {result.searchParams?.metroOrigin && (
+          <p className="text-amber-600 text-xs mt-2">
+            Searched {result.searchParams.originDisplay}: {result.searchParams.metroOrigin.join(", ")}
+          </p>
+        )}
+        {result.searchParams?.metroDestination && (
+          <p className="text-amber-600 text-xs mt-1">
+            To {result.searchParams.destinationDisplay}: {result.searchParams.metroDestination.join(", ")}
+          </p>
+        )}
+      </div>
+    );
   }
 
   const bestOption = result.bestOption;

@@ -1,14 +1,16 @@
 // Integrated Search API with Validation
 // Uses global airports, metro search, and flight validation
+// Returns format compatible with frontend
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAirportByIATA, getMetroAirports, searchAirports } from "@/app/lib/global-airports";
-import { getMetroArea, findMetroByName } from "@/app/lib/metro-areas";
+import { getAirportByIATA, searchAirports } from "@/app/lib/global-airports";
+import { findMetroByName, getMetroArea } from "@/app/lib/metro-areas";
 import { validateFlight } from "@/app/lib/flight-validation";
-import { searchAmadeusFlights } from "@/app/lib/amadeus-api";
+import { searchAmadeusFlights, transformAmadeusResults } from "@/app/lib/amadeus-api";
+import { getDealsForRoute } from "@/app/lib/rss-scraper";
 
 // ============================================
-// PRODUCTION SEARCH API - VALIDATED DATA ONLY
+// PRODUCTION SEARCH API - VALIDATED DATA
 // ============================================
 
 interface SearchParams {
@@ -22,12 +24,13 @@ interface SearchParams {
 
 /**
  * Expand search query to airports
- * Handles metro areas (e.g., "London" -> LHR, LGW, STN, LTN)
+ * Handles metro areas (e.g., "London" -> LHR, LGW, STN, LTN, LCY, SEN)
  */
 function expandToAirports(query: string): {
   isMetro: boolean;
   airports: string[];
   displayName: string;
+  metroCode?: string;
 } {
   // Check if it's a metro area name
   const metro = findMetroByName(query);
@@ -35,7 +38,8 @@ function expandToAirports(query: string): {
     return {
       isMetro: true,
       airports: metro.airports,
-      displayName: `${metro.name} (All Airports)`
+      displayName: `${metro.name} (All Airports)`,
+      metroCode: metro.code
     };
   }
   
@@ -45,7 +49,8 @@ function expandToAirports(query: string): {
     return {
       isMetro: true,
       airports: metroByCode.airports,
-      displayName: `${metroByCode.name} (All Airports)`
+      displayName: `${metroByCode.name} (All Airports)`,
+      metroCode: metroByCode.code
     };
   }
   
@@ -92,96 +97,152 @@ export async function POST(request: NextRequest) {
     console.log(`[Search] Origin: ${originExpanded.displayName} -> ${originExpanded.airports.join(", ")}`);
     console.log(`[Search] Destination: ${destExpanded.displayName} -> ${destExpanded.airports.join(", ")}`);
     
-    // For now, use first airport from each (primary airport)
-    const originAirport = originExpanded.airports[0];
-    const destAirport = destExpanded.airports[0];
+    // Get all airport combinations for metro search
+    const allOptions: any[] = [];
     
-    // Try Amadeus API first (real data)
-    let flights: any[] = [];
-    let dataSource = "none";
-    
-    try {
-      const amadeusResult = await searchAmadeusFlights({
-        origin: originAirport,
-        destination: destAirport,
-        departureDate: params.departureDate,
-        returnDate: params.returnDate,
-        adults: params.adults || 1,
-        travelClass: (params.cabinClass as any) || "ECONOMY",
-      });
-      
-      if (amadeusResult && amadeusResult.length > 0) {
-        flights = amadeusResult;
-        dataSource = "amadeus";
-        console.log(`[Search] Found ${flights.length} flights from Amadeus`);
+    // Try each airport combination
+    for (const originAirport of originExpanded.airports) {
+      for (const destAirport of destExpanded.airports) {
+        try {
+          // Try Amadeus API
+          const amadeusResult = await searchAmadeusFlights({
+            origin: originAirport,
+            destination: destAirport,
+            departureDate: params.departureDate,
+            returnDate: params.returnDate,
+            adults: params.adults || 1,
+            travelClass: (params.cabinClass as any) || "ECONOMY",
+          });
+          
+          if (amadeusResult && amadeusResult.length > 0) {
+            // Transform to our format
+            const transformed = transformAmadeusResults(amadeusResult, {
+              origin: originAirport,
+              destination: destAirport,
+              departureDate: params.departureDate,
+              returnDate: params.returnDate,
+              adults: params.adults || 1,
+              travelClass: (params.cabinClass as any) || "ECONOMY",
+            });
+            
+            // Validate and add each flight
+            for (const flight of transformed.options || []) {
+              const firstSegment = flight.segments?.[0];
+              if (!firstSegment) continue;
+              
+              const validation = validateFlight({
+                flightNumber: firstSegment.flightNumber,
+                airline: firstSegment.airline,
+                origin: firstSegment.origin?.code,
+                destination: firstSegment.destination?.code,
+                departureTime: firstSegment.departureTime,
+                arrivalTime: firstSegment.arrivalTime,
+                duration: firstSegment.durationMinutes,
+                aircraft: firstSegment.aircraft,
+                source: 'amadeus-api',
+                fetchedAt: new Date(),
+              });
+              
+              if (validation.isValid) {
+                allOptions.push({
+                  ...flight,
+                  _validation: validation,
+                  _confidence: validation.confidence,
+                  _source: 'amadeus',
+                  _airports: { origin: originAirport, destination: destAirport }
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.log(`[Search] ${originAirport}->${destAirport} failed:`, e);
+        }
       }
-    } catch (e) {
-      console.log("[Search] Amadeus API failed:", e);
     }
     
-    // If no Amadeus results, return empty with message
-    if (flights.length === 0) {
+    // Also try RSS deals
+    try {
+      const rssDeals = await getDealsForRoute(
+        originExpanded.airports[0], 
+        destExpanded.airports[0]
+      );
+      
+      for (const deal of rssDeals) {
+        allOptions.push({
+          id: `deal-${deal.source}-${Date.now()}`,
+          strategy: "rss-deal",
+          strategyDescription: `${deal.source}: ${deal.route}`,
+          totalPrice: deal.price,
+          perPersonPrice: deal.price,
+          currency: deal.currency,
+          segments: [{
+            origin: { code: deal.fromCode || deal.from, name: deal.from },
+            destination: { code: deal.toCode || deal.to, name: deal.to },
+            departureTime: `${params.departureDate}T10:00:00`,
+            arrivalTime: `${params.departureDate}T14:00:00`,
+            airline: deal.source,
+            flightNumber: "DEAL",
+          }],
+          bookingLinks: [{ airline: deal.source, price: deal.price, url: deal.url }],
+          _source: 'rss',
+          _confidence: 50,
+        });
+      }
+    } catch (e) {
+      console.log("[Search] RSS deals failed:", e);
+    }
+    
+    // Sort by price
+    allOptions.sort((a, b) => a.totalPrice - b.totalPrice);
+    
+    if (allOptions.length === 0) {
+      // Return empty result with proper structure
       return NextResponse.json({
-        error: "No flights found",
-        message: "No validated flights available for this route. Try different dates or airports.",
+        standardOption: null,
+        bestOption: null,
+        allOptions: [],
+        optimizedOptions: [],
+        priceRange: { min: 0, max: 0, currency: "GBP" },
         searchParams: {
-          origin: originExpanded,
-          destination: destExpanded,
+          origin: params.origin,
+          destination: params.destination,
+          originDisplay: originExpanded.displayName,
+          destinationDisplay: destExpanded.displayName,
           departureDate: params.departureDate,
           returnDate: params.returnDate,
         },
         _dataSource: "none",
         _validated: true,
-      }, { status: 404 });
+        _message: "No flights found for this route. Try different dates or airports.",
+      });
     }
     
-    // Validate each flight
-    const validatedFlights = flights.map(flight => {
-      // Validate the flight
-      const validation = validateFlight({
-        flightNumber: flight.flightNumber,
-        airline: flight.segments[0]?.airline,
-        origin: flight.segments[0]?.origin?.code,
-        destination: flight.segments[0]?.destination?.code,
-        departureTime: flight.segments[0]?.departureTime,
-        arrivalTime: flight.segments[0]?.arrivalTime,
-        duration: flight.segments[0]?.duration,
-        aircraft: flight.segments[0]?.aircraft,
-        source: 'amadeus-api',
-        fetchedAt: new Date(),
-      });
-      
-      return {
-        ...flight,
-        _validation: validation,
-        _isValid: validation.isValid,
-        _confidence: validation.confidence,
-      };
-    }).filter(f => f._isValid); // Only return valid flights
-    
-    console.log(`[Search] ${validatedFlights.length} flights passed validation`);
-    
-    // Sort by confidence then price
-    validatedFlights.sort((a, b) => {
-      if (b._confidence !== a._confidence) {
-        return b._confidence - a._confidence;
-      }
-      return a.totalPrice - b.totalPrice;
-    });
+    const bestOption = allOptions[0];
+    const standardOption = allOptions.find(o => o.strategy === "standard") || allOptions[0];
     
     return NextResponse.json({
-      flights: validatedFlights,
-      count: validatedFlights.length,
+      standardOption,
+      bestOption,
+      allOptions,
+      optimizedOptions: allOptions.filter(o => o !== bestOption),
+      priceRange: {
+        min: Math.min(...allOptions.map(o => o.totalPrice)),
+        max: Math.max(...allOptions.map(o => o.totalPrice)),
+        currency: bestOption.currency || "GBP",
+      },
       searchParams: {
-        origin: originExpanded,
-        destination: destExpanded,
+        origin: params.origin,
+        destination: params.destination,
+        originDisplay: originExpanded.displayName,
+        destinationDisplay: destExpanded.displayName,
         departureDate: params.departureDate,
         returnDate: params.returnDate,
-        cabinClass: params.cabinClass || "ECONOMY",
+        metroOrigin: originExpanded.isMetro ? originExpanded.airports : null,
+        metroDestination: destExpanded.isMetro ? destExpanded.airports : null,
       },
-      _dataSource: dataSource,
+      _dataSource: "mixed",
       _validated: true,
-      _timestamp: new Date().toISOString(),
+      _metroSearch: originExpanded.isMetro || destExpanded.isMetro,
     });
     
   } catch (error: any) {
@@ -213,7 +274,7 @@ export async function GET(request: NextRequest) {
   
   return NextResponse.json({
     query,
-    airports: airports.slice(0, 10), // Limit to 10
+    airports: airports.slice(0, 10),
     metroArea: metro || null,
   });
 }
