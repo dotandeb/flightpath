@@ -240,7 +240,7 @@ export default function Home() {
 
   const totalPassengers = adults + children + infants;
 
-  const generateSplitTickets = (origin: string, dest: string, basePrice: number, hasReturn: boolean): SplitTicket[] => {
+  const generateSplitTickets = (origin: string, dest: string, basePrice: number, hasReturn: boolean, depDate: string, retDate?: string): SplitTicket[] => {
     const tickets: SplitTicket[] = [];
     const hubs = ['DXB', 'DOH', 'IST', 'AMS', 'CDG'];
     
@@ -270,7 +270,7 @@ export default function Home() {
             airline: hubAirlines[0], 
             flightNumber: `${hubAirlines[0].substring(0, 2).toUpperCase()}101`, 
             direction: 'outbound',
-            bookingLink: `https://www.google.com/travel/flights?q=${origin}+to+${hub}`,
+            bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${hub}%20on%20${depDate}`,
             step: 1
           },
           { 
@@ -280,12 +280,12 @@ export default function Home() {
             airline: hubAirlines[1] || hubAirlines[0], 
             flightNumber: `${(hubAirlines[1] || hubAirlines[0]).substring(0, 2).toUpperCase()}202`, 
             direction: 'outbound',
-            bookingLink: `https://www.google.com/travel/flights?q=${hub}+to+${dest}`,
+            bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${hub}%20to%20${dest}%20on%20${depDate}`,
             step: 2
           }
         ];
         
-        if (hasReturn) {
+        if (hasReturn && retDate) {
           ticketLegs.push(
             { 
               from: dest, 
@@ -294,7 +294,7 @@ export default function Home() {
               airline: hubAirlines[1] || hubAirlines[0], 
               flightNumber: `${(hubAirlines[1] || hubAirlines[0]).substring(0, 2).toUpperCase()}303`, 
               direction: 'return',
-              bookingLink: `https://www.google.com/travel/flights?q=${dest}+to+${hub}`,
+              bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${dest}%20to%20${hub}%20on%20${retDate}`,
               step: 3
             },
             { 
@@ -304,7 +304,7 @@ export default function Home() {
               airline: hubAirlines[0], 
               flightNumber: `${hubAirlines[0].substring(0, 2).toUpperCase()}404`, 
               direction: 'return',
-              bookingLink: `https://www.google.com/travel/flights?q=${hub}+to+${origin}`,
+              bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${hub}%20to%20${origin}%20on%20${retDate}`,
               step: 4
             }
           );
@@ -368,7 +368,7 @@ export default function Home() {
       }
       
       const cheapestPrice = flights[0]?.price || 500;
-      const splitTickets = generateSplitTickets(origin, destination, cheapestPrice, !!returnDate);
+      const splitTickets = generateSplitTickets(origin, destination, cheapestPrice, !!returnDate, departureDate, returnDate || undefined);
       
       let deals = data.deals || [];
       if (deals.length === 0) {
