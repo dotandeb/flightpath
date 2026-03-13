@@ -169,12 +169,14 @@ export default function Home() {
   const [travelClass, setTravelClass] = useState('ECONOMY');
   const [nonStop, setNonStop] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Searching...');
+  const [loadingStep, setLoadingStep] = useState(0);
   const [results, setResults] = useState<{
     flights: FlightResult[];
     deals: Deal[];
     splitTickets: SplitTicket[];
     airports: { origin: string[]; destination: string[] };
-    meta?: { cheapestPrice: number };
+    meta?: { cheapestPrice: number; source?: string };
   } | null>(null);
   const [activeTab, setActiveTab] = useState<'flights' | 'deals' | 'split'>('flights');
   const [showWhatWeDo, setShowWhatWeDo] = useState(false);
@@ -244,21 +246,42 @@ export default function Home() {
   const searchFlights = async () => {
     if (!origin || !destination) return;
     setLoading(true);
+    setLoadingStep(1);
+    setLoadingMessage('Starting real-time price search...');
+    
     try {
+      const totalPassengers = adults + children + infants;
+      
+      // Use scraper API for real prices
       const params = new URLSearchParams({
-        origin, destination, departureDate,
-        adults: adults.toString(),
-        children: children.toString(),
-        infants: infants.toString(),
+        origin, 
+        destination, 
+        departureDate,
+        passengers: totalPassengers.toString(),
         travelClass,
-        nonStop: nonStop.toString()
+        includeSplit: 'true'
       });
       if (returnDate) params.append('returnDate', returnDate);
       
-      const res = await fetch(`/api/flights?${params}`);
+      setLoadingStep(2);
+      setLoadingMessage('Scraping live prices from Google Flights (this takes 1-2 minutes)...');
+      
+      const res = await fetch(`/api/scrape-flights?${params}`, {
+        method: 'GET',
+        // Long timeout for scraping
+        signal: AbortSignal.timeout(120000)
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Scraping failed: ${res.status}`);
+      }
+      
+      setLoadingStep(3);
+      setLoadingMessage('Processing results...');
+      
       const data = await res.json();
       
-      let flights: FlightResult[] = data.amadeus.slice(0, 10).map((offer: any) => {
+      let flights: FlightResult[] = data.amadeus?.slice(0, 10).map((offer: any) => {
         const seg = offer.itineraries[0]?.segments[0];
         const cabin = offer.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin || travelClass;
         return {
@@ -279,14 +302,9 @@ export default function Home() {
           stops: (offer.itineraries[0]?.segments?.length || 1) - 1,
           cabinClass: cabin
         };
-      });
+      }) || [];
       
-      if (travelClass !== 'ECONOMY') {
-        flights = flights.filter(f => f.cabinClass?.toUpperCase().includes(travelClass) || 
-                 (travelClass === 'PREMIUM_ECONOMY' && f.cabinClass?.includes('PREMIUM')));
-      }
-      
-      // Use split tickets from API (real prices from Amadeus)
+      // Use split tickets from scraper (real prices)
       const splitTickets = data.splitTickets || [];
       
       // Recalculate savings based on cheapest direct flight
@@ -294,19 +312,42 @@ export default function Home() {
       const splitTicketsWithSavings = splitTickets.map((st: SplitTicket) => ({
         ...st,
         savings: Math.max(0, Math.round(cheapestDirectPrice - st.totalPrice))
-      })).filter((st: SplitTicket) => st.savings > 20);
+      })).filter((st: SplitTicket) => st.savings > 20 || st.totalPrice < cheapestDirectPrice * 0.95);
       
-      let deals = data.deals || [];
+      // Get deals from static/API
+      let deals: Deal[] = [];
+      try {
+        const dealsRes = await fetch(`/api/deals?origin=${origin}&destination=${destination}`);
+        if (dealsRes.ok) {
+          deals = await dealsRes.json();
+        }
+      } catch (e) {
+        console.log('Deals fetch failed, using static');
+      }
+      
       if (deals.length === 0) {
         deals = STATIC_DEALS.filter(d => origin.includes('LON') && (destination.includes('NYC') || destination.includes('DXB')));
         if (deals.length === 0) deals = STATIC_DEALS.slice(0, 3);
       }
       
-      setResults({ flights, deals, splitTickets: splitTicketsWithSavings, airports: data.airports, meta: data.meta });
-    } catch (e) {
-      console.error(e);
+      setResults({ 
+        flights, 
+        deals, 
+        splitTickets: splitTicketsWithSavings, 
+        airports: data.airports || { origin: [origin], destination: [destination] },
+        meta: { 
+          cheapestPrice: data.meta?.cheapestPrice || cheapestDirectPrice,
+          source: data.meta?.source || 'SCRAPER'
+        } 
+      });
+      
+    } catch (e: any) {
+      console.error('Search error:', e);
+      alert('Search failed: ' + (e.message || 'Unknown error'));
     } finally {
       setLoading(false);
+      setLoadingStep(0);
+      setLoadingMessage('');
     }
   };
 
@@ -480,8 +521,35 @@ export default function Home() {
           </div>
 
           <button onClick={searchFlights} disabled={loading} className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg flex items-center gap-2">
-            {loading ? 'Searching...' : <><Search className="w-5 h-5" /> Search</>}
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                {loadingMessage}
+              </>
+            ) : (
+              <><Search className="w-5 h-5" /> Search</>
+            )}
           </button>
+          
+          {loading && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                  {loadingStep}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-900">{loadingMessage}</p>
+                  <div className="mt-2 h-2 bg-blue-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-600 transition-all duration-500"
+                      style={{ width: `${(loadingStep / 3) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-blue-600 mt-2">⏱️ This takes 1-2 minutes to scrape real prices from Google Flights</p>
+            </div>
+          )}
         </div>
 
         {results && (
@@ -542,10 +610,10 @@ export default function Home() {
                       <p className="text-sm text-amber-800"><strong>⚠️ Important:</strong> Book each ticket separately. If one flight is delayed, the airline won't rebook you on the next.</p>
                     </div>
                     
-                    <div className="mb-2"><p className="text-xs font-semibold text-gray-500 uppercase mb-2">Step-by-Step Booking</p><div className="space-y-3">{ticket.tickets.filter(t => t.direction === 'outbound').map((t, i) => (
+                    <div className="mb-2"><p className="text-xs font-semibold text-gray-500 uppercase mb-2">Step-by-Step Booking</p><div className="space-y-3">{ticket.tickets.slice(0, returnDate ? ticket.tickets.length / 2 : ticket.tickets.length).map((t, i) => (
                       <div key={i} className="bg-white p-3 rounded-lg border-l-4 border-blue-500">
                         <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">{t.step}</div>
+                          <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">{i + 1}</div>
                           <div className="flex-1">
                             <div className="flex justify-between items-start">
                               <div>
@@ -567,11 +635,11 @@ export default function Home() {
                       </div>
                     ))}</div></div>
                     
-                    {returnDate && ticket.tickets.some(t => t.direction === 'return') && (
-                      <div><p className="text-xs font-semibold text-gray-500 uppercase mb-2">Return Flights</p><div className="space-y-3">{ticket.tickets.filter(t => t.direction === 'return').map((t, i) => (
+                    {returnDate && ticket.tickets.length > 2 && (
+                      <div><p className="text-xs font-semibold text-gray-500 uppercase mb-2">Return Flights</p><div className="space-y-3">{ticket.tickets.slice(ticket.tickets.length / 2).map((t, i) => (
                         <div key={i} className="bg-white p-3 rounded-lg border-l-4 border-green-500">
                           <div className="flex items-start gap-3">
-                            <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">{t.step}</div>
+                            <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">{i + 1}</div>
                             <div className="flex-1">
                               <div className="flex justify-between items-start">
                                 <div>
