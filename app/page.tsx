@@ -174,6 +174,7 @@ export default function Home() {
     deals: Deal[];
     splitTickets: SplitTicket[];
     airports: { origin: string[]; destination: string[] };
+    meta?: { cheapestPrice: number };
   } | null>(null);
   const [activeTab, setActiveTab] = useState<'flights' | 'deals' | 'split'>('flights');
   const [showWhatWeDo, setShowWhatWeDo] = useState(false);
@@ -240,90 +241,6 @@ export default function Home() {
 
   const totalPassengers = adults + children + infants;
 
-  const generateSplitTickets = (origin: string, dest: string, basePrice: number, hasReturn: boolean, depDate: string, retDate: string | undefined, cabinClass: string): SplitTicket[] => {
-    const tickets: SplitTicket[] = [];
-    const hubs = ['DXB', 'DOH', 'IST', 'AMS', 'CDG'];
-    
-    for (const hub of hubs.slice(0, 3)) {
-      const outbound1 = Math.round(basePrice * 0.4);
-      const outbound2 = Math.round(basePrice * 0.45);
-      const outboundTotal = outbound1 + outbound2;
-      
-      let return1 = 0, return2 = 0, returnTotal = 0;
-      if (hasReturn) {
-        return1 = Math.round(basePrice * 0.35);
-        return2 = Math.round(basePrice * 0.4);
-        returnTotal = return1 + return2;
-      }
-      
-      const grandTotal = outboundTotal + returnTotal;
-      const standardReturnPrice = basePrice * (hasReturn ? 2 : 1);
-      
-      if (grandTotal < standardReturnPrice * 0.85) {
-        const hubAirlines = AIRLINES[hub as keyof typeof AIRLINES] || ['Various Airlines'];
-        
-        const classParam = cabinClass === 'BUSINESS' ? '%20business%20class' : cabinClass === 'FIRST' ? '%20first%20class' : cabinClass === 'PREMIUM_ECONOMY' ? '%20premium%20economy' : '';
-        
-        const ticketLegs: Array<{from: string; to: string; price: number; airline: string; flightNumber: string; direction: 'outbound' | 'return'; bookingLink: string; step: number}> = [
-          { 
-            from: origin, 
-            to: hub, 
-            price: outbound1, 
-            airline: hubAirlines[0], 
-            flightNumber: `${hubAirlines[0].substring(0, 2).toUpperCase()}101`, 
-            direction: 'outbound',
-            bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${hub}%20on%20${depDate}${classParam}`,
-            step: 1
-          },
-          { 
-            from: hub, 
-            to: dest, 
-            price: outbound2, 
-            airline: hubAirlines[1] || hubAirlines[0], 
-            flightNumber: `${(hubAirlines[1] || hubAirlines[0]).substring(0, 2).toUpperCase()}202`, 
-            direction: 'outbound',
-            bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${hub}%20to%20${dest}%20on%20${depDate}${classParam}`,
-            step: 2
-          }
-        ];
-        
-        if (hasReturn && retDate) {
-          ticketLegs.push(
-            { 
-              from: dest, 
-              to: hub, 
-              price: return1, 
-              airline: hubAirlines[1] || hubAirlines[0], 
-              flightNumber: `${(hubAirlines[1] || hubAirlines[0]).substring(0, 2).toUpperCase()}303`, 
-              direction: 'return',
-              bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${dest}%20to%20${hub}%20on%20${retDate}${classParam}`,
-              step: 3
-            },
-            { 
-              from: hub, 
-              to: origin, 
-              price: return2, 
-              airline: hubAirlines[0], 
-              flightNumber: `${hubAirlines[0].substring(0, 2).toUpperCase()}404`, 
-              direction: 'return',
-              bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${hub}%20to%20${origin}%20on%20${retDate}${classParam}`,
-              step: 4
-            }
-          );
-        }
-        
-        tickets.push({
-          id: `split-${hub}`,
-          tickets: ticketLegs,
-          totalPrice: grandTotal,
-          savings: Math.round(standardReturnPrice - grandTotal),
-          currency: 'GBP'
-        });
-      }
-    }
-    return tickets;
-  };
-
   const searchFlights = async () => {
     if (!origin || !destination) return;
     setLoading(true);
@@ -369,8 +286,15 @@ export default function Home() {
                  (travelClass === 'PREMIUM_ECONOMY' && f.cabinClass?.includes('PREMIUM')));
       }
       
-      const cheapestPrice = flights[0]?.price || 500;
-      const splitTickets = generateSplitTickets(origin, destination, cheapestPrice, !!returnDate, departureDate, returnDate || undefined, travelClass);
+      // Use split tickets from API (real prices from Amadeus)
+      const splitTickets = data.splitTickets || [];
+      
+      // Recalculate savings based on cheapest direct flight
+      const cheapestDirectPrice = flights[0]?.price || 500;
+      const splitTicketsWithSavings = splitTickets.map((st: SplitTicket) => ({
+        ...st,
+        savings: Math.max(0, Math.round(cheapestDirectPrice - st.totalPrice))
+      })).filter((st: SplitTicket) => st.savings > 20);
       
       let deals = data.deals || [];
       if (deals.length === 0) {
@@ -378,7 +302,7 @@ export default function Home() {
         if (deals.length === 0) deals = STATIC_DEALS.slice(0, 3);
       }
       
-      setResults({ flights, deals, splitTickets, airports: data.airports });
+      setResults({ flights, deals, splitTickets: splitTicketsWithSavings, airports: data.airports, meta: data.meta });
     } catch (e) {
       console.error(e);
     } finally {
