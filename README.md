@@ -31,3 +31,4 @@ For production with Amadeus API:
 - `AMADEUS_API_SECRET`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
+# Auto-deploy configured Fri Mar 13 08:59:03 PM CST 2026
