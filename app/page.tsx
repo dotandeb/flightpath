@@ -247,38 +247,23 @@ export default function Home() {
     if (!origin || !destination) return;
     setLoading(true);
     setLoadingStep(1);
-    setLoadingMessage('Starting real-time price search...');
+    setLoadingMessage('Searching...');
     
     try {
       const totalPassengers = adults + children + infants;
-      
-      // Use scraper API for real prices
       const params = new URLSearchParams({
-        origin, 
-        destination, 
-        departureDate,
-        passengers: totalPassengers.toString(),
+        origin, destination, departureDate,
+        adults: adults.toString(),
+        children: children.toString(),
+        infants: infants.toString(),
         travelClass,
-        includeSplit: 'true'
+        nonStop: nonStop.toString()
       });
       if (returnDate) params.append('returnDate', returnDate);
       
-      setLoadingStep(2);
-      setLoadingMessage('Scraping live prices from Google Flights (this takes 1-2 minutes)...');
-      
-      const res = await fetch(`/api/scrape-flights?${params}`, {
-        method: 'GET',
-        // Long timeout for scraping
-        signal: AbortSignal.timeout(120000)
-      });
-      
-      if (!res.ok) {
-        throw new Error(`Scraping failed: ${res.status}`);
-      }
-      
-      setLoadingStep(3);
-      setLoadingMessage('Processing results...');
-      
+      // Try Amadeus API first (fast, works on Vercel)
+      console.log('[Search] Trying Amadeus API...');
+      const res = await fetch(`/api/flights?${params}`, { signal: AbortSignal.timeout(30000) });
       const data = await res.json();
       
       let flights: FlightResult[] = data.amadeus?.slice(0, 10).map((offer: any) => {
@@ -304,27 +289,17 @@ export default function Home() {
         };
       }) || [];
       
-      // Use split tickets from scraper (real prices)
+      // Use split tickets from API (may be mock if Amadeus failed)
       const splitTickets = data.splitTickets || [];
       
-      // Recalculate savings based on cheapest direct flight
+      // Recalculate savings
       const cheapestDirectPrice = flights[0]?.price || 500;
       const splitTicketsWithSavings = splitTickets.map((st: SplitTicket) => ({
         ...st,
         savings: Math.max(0, Math.round(cheapestDirectPrice - st.totalPrice))
       })).filter((st: SplitTicket) => st.savings > 20 || st.totalPrice < cheapestDirectPrice * 0.95);
       
-      // Get deals from static/API
-      let deals: Deal[] = [];
-      try {
-        const dealsRes = await fetch(`/api/deals?origin=${origin}&destination=${destination}`);
-        if (dealsRes.ok) {
-          deals = await dealsRes.json();
-        }
-      } catch (e) {
-        console.log('Deals fetch failed, using static');
-      }
-      
+      let deals = data.deals || [];
       if (deals.length === 0) {
         deals = STATIC_DEALS.filter(d => origin.includes('LON') && (destination.includes('NYC') || destination.includes('DXB')));
         if (deals.length === 0) deals = STATIC_DEALS.slice(0, 3);
@@ -334,12 +309,14 @@ export default function Home() {
         flights, 
         deals, 
         splitTickets: splitTicketsWithSavings, 
-        airports: data.airports || { origin: [origin], destination: [destination] },
-        meta: { 
-          cheapestPrice: data.meta?.cheapestPrice || cheapestDirectPrice,
-          source: data.meta?.source || 'SCRAPER'
-        } 
+        airports: data.airports,
+        meta: data.meta 
       });
+      
+      // Show message if using fallback data
+      if (data.meta?.usingFallback || splitTickets.length === 0) {
+        console.log('[Search] Using fallback/mock data');
+      }
       
     } catch (e: any) {
       console.error('Search error:', e);
@@ -347,6 +324,98 @@ export default function Home() {
     } finally {
       setLoading(false);
       setLoadingStep(0);
+      setLoadingMessage('');
+    }
+  };
+  
+  // Deep search using scraper v2 (takes 1-2 minutes)
+  const deepSearchWithScraper = async () => {
+    if (!origin || !destination) return;
+    setLoading(true);
+    setLoadingStep(1);
+    setLoadingMessage('Starting deep search with real-time scraping...');
+    
+    try {
+      const params = new URLSearchParams({
+        origin, 
+        destination, 
+        departureDate,
+        travelClass,
+        includeSplit: 'true'
+      });
+      if (returnDate) params.append('returnDate', returnDate);
+      
+      setLoadingStep(2);
+      setLoadingMessage('Scraping Google Flights for real prices (1-2 minutes)...');
+      
+      const res = await fetch(`/api/scrape-v2?${params}`, {
+        signal: AbortSignal.timeout(180000) // 3 minute timeout
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Scraping failed: ${res.status}`);
+      }
+      
+      setLoadingStep(3);
+      setLoadingMessage('Building split ticket combinations...');
+      
+      const data = await res.json();
+      
+      // Convert scraped flights to FlightResult format
+      const flights: FlightResult[] = data.flights?.slice(0, 10).map((f: any, i: number) => ({
+        id: `scraped-${i}`,
+        airline: f.airline,
+        flightNumber: f.flightNumber,
+        departure: {
+          airport: f.departure.airport,
+          time: f.departure.time || '--:--'
+        },
+        arrival: {
+          airport: f.arrival.airport,
+          time: f.arrival.time || '--:--'
+        },
+        duration: f.duration || 'N/A',
+        price: f.price,
+        currency: f.currency || 'GBP',
+        stops: f.stops,
+        cabinClass: travelClass
+      })) || [];
+      
+      // Convert split tickets
+      const splitTickets: SplitTicket[] = data.splitTickets?.map((st: any) => ({
+        id: st.id,
+        tickets: st.tickets.map((t: any, idx: number) => ({
+          ...t,
+          direction: idx < st.tickets.length / 2 ? 'outbound' : 'return' as 'outbound' | 'return',
+          step: (idx % (st.tickets.length / 2)) + 1
+        })),
+        totalPrice: st.totalPrice,
+        savings: st.savings,
+        currency: st.currency
+      })) || [];
+      
+      setResults({ 
+        flights, 
+        deals: [], 
+        splitTickets, 
+        airports: { origin: [origin], destination: [destination] },
+        meta: { ...data.meta, source: 'SCRAPER_V2' }
+      });
+      
+      // Auto-switch to split tab if we found split tickets
+      if (splitTickets.length > 0) {
+        setActiveTab('split');
+      }
+      
+    } catch (e: any) {
+      console.error('Deep search error:', e);
+      alert('Deep search failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+      setLoadingStep(0);
+      setLoadingMessage('');
+    }
+  };
       setLoadingMessage('');
     }
   };
@@ -672,6 +741,26 @@ export default function Home() {
             )}
           </div>
         )}
+        
+        {/* Deep Search Button */}
+        <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-purple-900">🔍 Deep Search with Real Scraping</p>
+              <p className="text-sm text-purple-700">Get real prices from Google Flights + split ticket analysis (takes 1-2 minutes)</p>
+            </div>
+            <button 
+              onClick={deepSearchWithScraper}
+              disabled={loading}
+              className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              {loading ? 'Searching...' : 'Deep Search'}
+            </button>
+          </div>
+          {results?.meta?.source === 'SCRAPER_V2' && (
+            <p className="text-xs text-green-600 mt-2">✅ Results from real-time scraping</p>
+          )}
+        </div>
         
         {/* Domain Configuration Notice */}
         <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
