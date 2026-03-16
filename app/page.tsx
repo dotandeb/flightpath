@@ -252,79 +252,86 @@ export default function Home() {
 
   const totalPassengers = adults + children + infants;
 
-  const searchFlights = async () => {
+  const searchFlightsCombined = async (useDeepSearch = false) => {
     if (!origin || !destination) return;
     setLoading(true);
     setLoadingStep(1);
-    setLoadingMessage('Searching...');
+    setLoadingMessage('Searching across all sources...');
     
     try {
-      const totalPassengers = adults + children + infants;
       const params = new URLSearchParams({
         origin, destination, departureDate,
         adults: adults.toString(),
         children: children.toString(),
         infants: infants.toString(),
         travelClass,
-        nonStop: nonStop.toString()
+        includeSplit: 'true'
       });
       if (returnDate) params.append('returnDate', returnDate);
+      if (useDeepSearch) params.append('deepSearch', 'true');
       
-      // Try Amadeus API first (fast, works on Vercel)
-      console.log('[Search] Trying Amadeus API...');
-      const res = await fetch(`/api/flights?${params}`, { signal: AbortSignal.timeout(30000) });
+      setLoadingStep(2);
+      setLoadingMessage('Querying Amadeus API + Scraping Google Flights + Skyscanner...');
+      
+      const res = await fetch(`/api/combined-search?${params}`, { 
+        signal: AbortSignal.timeout(300000) // 5 minute timeout for deep search
+      });
+      
+      if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+      
+      setLoadingStep(3);
+      setLoadingMessage('Processing and combining results...');
+      
       const data = await res.json();
       
-      let flights: FlightResult[] = data.amadeus?.slice(0, 10).map((offer: any) => {
-        const seg = offer.itineraries[0]?.segments[0];
-        const cabin = offer.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin || travelClass;
-        return {
-          id: offer.id,
-          airline: offer.validatingAirlineCodes[0] || 'Unknown',
-          flightNumber: seg ? `${seg.carrierCode}${seg.number}` : 'N/A',
-          departure: {
-            airport: seg?.departure?.iataCode || origin,
-            time: seg?.departure?.at ? format(new Date(seg.departure.at), 'HH:mm') : '--:--'
-          },
-          arrival: {
-            airport: seg?.arrival?.iataCode || destination,
-            time: seg?.arrival?.at ? format(new Date(seg.arrival.at), 'HH:mm') : '--:--'
-          },
-          duration: offer.itineraries[0]?.duration?.replace('PT', '').replace('H', 'h ').replace('M', 'm') || 'N/A',
-          price: parseFloat(offer.price.total),
-          currency: offer.price.currency || 'GBP',
-          stops: (offer.itineraries[0]?.segments?.length || 1) - 1,
-          cabinClass: cabin
-        };
-      }) || [];
+      // Convert to FlightResult format
+      const flights: FlightResult[] = data.flights?.map((f: any) => ({
+        id: f.id,
+        airline: f.airline,
+        flightNumber: f.flightNumber,
+        departure: {
+          airport: f.departure.airport,
+          time: f.departure.time ? format(new Date(f.departure.time), 'HH:mm') : '--:--'
+        },
+        arrival: {
+          airport: f.arrival.airport,
+          time: f.arrival.time ? format(new Date(f.arrival.time), 'HH:mm') : '--:--'
+        },
+        duration: f.duration?.replace('PT', '').replace('H', 'h ').replace('M', 'm') || 'N/A',
+        price: f.price,
+        currency: f.currency,
+        stops: f.stops,
+        cabinClass: travelClass
+      })) || [];
       
-      // Use split tickets from API (may be mock if Amadeus failed)
-      const splitTickets = data.splitTickets || [];
-      
-      // Recalculate savings
-      const cheapestDirectPrice = flights[0]?.price || 500;
-      const splitTicketsWithSavings = splitTickets.map((st: SplitTicket) => ({
-        ...st,
-        savings: Math.max(0, Math.round(cheapestDirectPrice - st.totalPrice))
-      })).filter((st: SplitTicket) => st.savings > 20 || st.totalPrice < cheapestDirectPrice * 0.95);
-      
-      let deals = data.deals || [];
-      if (deals.length === 0) {
-        deals = STATIC_DEALS.filter(d => origin.includes('LON') && (destination.includes('NYC') || destination.includes('DXB')));
-        if (deals.length === 0) deals = STATIC_DEALS.slice(0, 3);
-      }
+      // Convert split tickets
+      const splitTickets: SplitTicket[] = data.splitTickets?.map((st: any) => ({
+        id: st.id,
+        tickets: st.tickets.map((t: any, idx: number) => ({
+          ...t,
+          direction: 'outbound' as const,
+          step: idx + 1
+        })),
+        totalPrice: st.totalPrice,
+        savings: st.savings,
+        currency: st.currency
+      })) || [];
       
       setResults({ 
         flights, 
-        deals, 
-        splitTickets: splitTicketsWithSavings, 
-        airports: data.airports,
-        meta: data.meta 
+        deals: [], 
+        splitTickets, 
+        airports: { origin: [origin], destination: [destination] },
+        meta: { 
+          ...data.meta, 
+          source: 'COMBINED',
+          sources: data.meta?.sources 
+        }
       });
       
-      // Show message if using fallback data
-      if (data.meta?.usingFallback || splitTickets.length === 0) {
-        console.log('[Search] Using fallback/mock data');
+      // Auto-switch to split tab if we found good split tickets
+      if (splitTickets.length > 0) {
+        setActiveTab('split');
       }
       
     } catch (e: any) {
@@ -634,16 +641,29 @@ export default function Home() {
             <div className="flex items-end"><label className="flex items-center gap-2 py-2.5"><input type="checkbox" checked={nonStop} onChange={e => setNonStop(e.target.checked)} className="w-5 h-5" /><span className="text-sm">Non-stop only</span></label></div>
           </div>
 
-          <button onClick={searchFlights} disabled={loading} className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg flex items-center gap-2">
-            {loading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                {loadingMessage}
-              </>
-            ) : (
-              <><Search className="w-5 h-5" /> Search</>
-            )}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => searchFlightsCombined(false)} disabled={loading} className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg flex items-center gap-2">
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  {loadingMessage}
+                </>
+              ) : (
+                <><Search className="w-5 h-5" /> Search All Sources</>
+              )}
+            </button>
+            
+            <button onClick={() => searchFlightsCombined(true)} disabled={loading} className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-pink-600 text-white font-semibold rounded-lg flex items-center gap-2">
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Deep Search
+                </>
+              ) : (
+                <><Sparkles className="w-5 h-5" /> Deep Search (All Sources + Extra Scrapers)</>
+              )}
+            </button>
+          </div>
           
           {loading && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
