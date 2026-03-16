@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
   try {
     // Mode 1: Deep Research (comprehensive route search)
     if (mode === 'research') {
-      const originRegion = (searchParams.get('originRegion') || 'europe') as any;
-      const destinationRegion = (searchParams.get('destinationRegion') || 'asia') as any;
+      const originRegion = (searchParams.get('originRegion') || 'europe') as keyof typeof MAJOR_AIRPORTS;
+      const destinationRegion = (searchParams.get('destinationRegion') || 'asia') as keyof typeof MAJOR_AIRPORTS;
       const maxRoutes = parseInt(searchParams.get('maxRoutes') || '20');
       
       if (!departureDate) {

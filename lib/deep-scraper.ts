@@ -173,8 +173,8 @@ export async function scrapePrices(
     // Extract all prices
     const pagePrices = await page.evaluate(() => {
       const text = document.body.innerText;
-      const matches = [...text.matchAll(/£([\d,]+)/g)];
-      return [...new Set(matches.map(m => parseInt(m[1].replace(/,/g, ''))))]
+      const matches = Array.from(text.matchAll(/£([\d,]+)/g));
+      return Array.from(new Set(matches.map(m => parseInt(m[1].replace(/,/g, '')))))
         .filter(p => p >= 50 && p <= 20000);
     });
     
@@ -191,8 +191,8 @@ export async function scrapePrices(
 
 // Deep research: Search multiple routes comprehensively
 export async function deepResearch(
-  originRegion: 'europe' | 'northAmerica' | 'asia' | 'middleEast' | 'uk' | 'all',
-  destinationRegion: 'europe' | 'northAmerica' | 'asia' | 'middleEast' | 'oceania' | 'africa' | 'southAmerica' | 'all',
+  originRegion: 'europe' | 'northAmerica' | 'asia' | 'middleEast' | 'oceania' | 'africa' | 'southAmerica' | 'uk' | 'all',
+  destinationRegion: 'europe' | 'northAmerica' | 'asia' | 'middleEast' | 'oceania' | 'africa' | 'southAmerica' | 'uk' | 'all',
   departureDate: string,
   options: {
     maxRoutes?: number;

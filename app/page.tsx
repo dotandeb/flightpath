@@ -897,7 +897,7 @@ export default function Home() {
                     🚨 Error Fares Detected
                   </h4>
                   <div className="space-y-2">
-                    {deepResearchResults.errorFares.slice(0, 3).map((fare, i) => (
+                    {deepResearchResults.errorFares.slice(0, 3).map((fare: any, i: number) => (
                       <div key={i} className="flex items-center justify-between bg-red-900/30 p-3 rounded">
                         <div>
                           <p className="font-semibold">{fare.route}</p>
@@ -918,7 +918,7 @@ export default function Home() {
                 <div className="bg-purple-500/20 border border-purple-400/30 p-4 rounded-lg">
                   <h4 className="font-bold text-purple-300 mb-3">💰 Best Split Ticket Opportunities</h4>
                   <div className="space-y-2">
-                    {deepResearchResults.splitTicketOpportunities.slice(0, 3).map((split, i) => (
+                    {deepResearchResults.splitTicketOpportunities.slice(0, 3).map((split: any, i: number) => (
                       <div key={i} className="bg-purple-900/30 p-3 rounded">
                         <div className="flex items-center justify-between">
                           <p className="font-semibold">{split.route}</p>
@@ -928,7 +928,7 @@ export default function Home() {
                           Direct: £{split.vsDirectPrice} → Split: £{split.price}
                         </div>
                         <div className="mt-2 space-y-1">
-                          {split.legs?.map((leg, j) => (
+                          {split.legs?.map((leg: any, j: number) => (
                             <div key={j} className="text-xs flex items-center gap-2">
                               <span>{leg.from} → {leg.to}: £{leg.price}</span>
                             </div>
@@ -944,7 +944,7 @@ export default function Home() {
               <div className="bg-white/10 p-4 rounded-lg">
                 <h4 className="font-bold mb-3">🌍 Top 10 Cheapest Flights Found</h4>
                 <div className="space-y-2">
-                  {deepResearchResults.cheapestFlights.slice(0, 10).map((flight, i) => (
+                  {deepResearchResults.cheapestFlights.slice(0, 10).map((flight: any, i: number) => (
                     <div key={i} className="flex items-center justify-between p-2 hover:bg-white/5 rounded">
                       <div className="flex items-center gap-3">
                         <span className="text-indigo-300 w-6">#{i + 1}</span>

@@ -151,13 +151,13 @@ export async function scrapeGoogleFlights(
     await page.waitForTimeout(5000);
     
     // Extract prices using multiple strategies
-    const flightData = await page.evaluate((maxRes, orig, dest, depDate) => {
+    const flightData = await page.evaluate(({ maxRes, orig, dest, depDate }: { maxRes: number, orig: string, dest: string, depDate: string }) => {
       const results: ScrapedFlight[] = [];
       const bodyText = document.body.innerText;
       
       // Extract all prices with £ symbol
-      const priceMatches = [...bodyText.matchAll(/£([\d,]+)/g)];
-      const uniquePrices = [...new Set(priceMatches.map(m => parseInt(m[1].replace(/,/g, ''))))]
+      const priceMatches = Array.from(bodyText.matchAll(/£([\d,]+)/g));
+      const uniquePrices = Array.from(new Set(priceMatches.map(m => parseInt(m[1].replace(/,/g, '')))))
         .filter(p => p >= 50 && p <= 10000)
         .slice(0, maxRes);
       
@@ -199,7 +199,7 @@ export async function scrapeGoogleFlights(
       }
       
       return results;
-    }, maxResults, origin, destination, departureDate);
+    }, { maxRes: maxResults, orig: origin, dest: destination, depDate: departureDate });
     
     flights.push(...flightData);
     console.log(`[Scraper] Found ${flights.length} flights`);
@@ -245,13 +245,13 @@ export async function scrapeSkyscanner(
     await page.waitForTimeout(5000);
     
     // Extract prices
-    const flightData = await page.evaluate((maxRes, orig, dest) => {
+    const flightData = await page.evaluate(({ maxRes, orig, dest }: { maxRes: number, orig: string, dest: string }) => {
       const results: ScrapedFlight[] = [];
       const bodyText = document.body.innerText;
       
       // Look for price patterns
-      const priceMatches = [...bodyText.matchAll(/£([\d,]+)/g)];
-      const uniquePrices = [...new Set(priceMatches.map(m => parseInt(m[1].replace(/,/g, ''))))]
+      const priceMatches = Array.from(bodyText.matchAll(/£([\d,]+)/g));
+      const uniquePrices = Array.from(new Set(priceMatches.map(m => parseInt(m[1].replace(/,/g, '')))))
         .filter(p => p >= 50 && p <= 10000)
         .slice(0, maxRes);
       
@@ -272,7 +272,7 @@ export async function scrapeSkyscanner(
       }
       
       return results;
-    }, maxResults, origin, destination);
+    }, { maxRes: maxResults, orig: origin, dest: destination });
     
     flights.push(...flightData);
     console.log(`[Skyscanner] Found ${flights.length} flights`);
