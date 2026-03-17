@@ -259,7 +259,7 @@ async function processDeepSearch(
       meta: {
         totalResults: validated.length,
         cheapestPrice: validated[0]?.price || 0,
-        sources: [...new Set(validated.map(f => f.source))]
+        sources: Array.from(new Set(validated.map(f => f.source)))
       }
     };
     
