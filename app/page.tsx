@@ -245,6 +245,11 @@ export default function Home() {
     setShowOriginSuggestions(false);
   };
 
+  const selectDest = (airport: typeof AIRPORTS[0]) => {
+    setDestination(airport.code);
+    setShowDestSuggestions(false);
+  };
+
   const handleDepartureDateChange = (value: string) => {
     setDepartureDate(value);
     // If return date is set and is before departure, update it
