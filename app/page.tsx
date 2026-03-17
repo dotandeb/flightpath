@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plane, Search, Calendar, MapPin, TrendingDown, Zap, Globe, Sparkles, Info, Users, Minus, Plus, ExternalLink } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
+import { useFlightStream, StreamedFlight, StreamedSplitTicket } from '@/app/hooks/useFlightStream';
 
 interface FlightResult {
   id: string;
@@ -175,6 +176,18 @@ export default function Home() {
   const [loadingMessage, setLoadingMessage] = useState('Searching...');
   const [loadingStep, setLoadingStep] = useState(0);
   
+  // NEW: Streaming search hook (replaces old polling)
+  const {
+    status: streamStatus,
+    progress: streamProgress,
+    message: streamMessage,
+    flights: streamedFlights,
+    splitTickets: streamedSplitTickets,
+    startSearch: startStreamSearch,
+    cancelSearch: cancelStreamSearch,
+    isSearching: isStreamSearching
+  } = useFlightStream();
+  
   // Deep Research states
   const [researchOrigin, setResearchOrigin] = useState('europe');
   const [researchDest, setResearchDest] = useState('asia');
@@ -267,84 +280,119 @@ export default function Home() {
 
   const totalPassengers = adults + children + infants;
 
-  const searchFlights = async (useDeepSearch = false) => {
-    if (!origin || !destination) return;
-    setLoading(true);
-    setLoadingStep(1);
-    setLoadingMessage(useDeepSearch ? 'Starting deep search...' : 'Searching flights...');
-    
-    try {
-      // Use new reliable search API
-      const params = new URLSearchParams({
-        origin, destination, departureDate,
-        travelClass,
-        includeSplit: 'true'
-      });
-      if (returnDate) params.append('returnDate', returnDate);
+  // NEW: Sync streaming results to component state
+  useEffect(() => {
+    if (streamedFlights.length > 0) {
+      const flights: FlightResult[] = streamedFlights.map((f: StreamedFlight) => ({
+        id: f.id,
+        airline: f.airline,
+        flightNumber: f.flightNumber,
+        departure: {
+          airport: f.from,
+          time: f.departure?.time || '--:--'
+        },
+        arrival: {
+          airport: f.to,
+          time: f.arrival?.time || '--:--'
+        },
+        duration: f.duration || 'N/A',
+        price: f.price,
+        currency: f.currency || 'GBP',
+        stops: f.stops || 0,
+        cabinClass: travelClass
+      }));
       
-      if (useDeepSearch) {
-        // Deep search uses async job queue
-        params.append('async', 'true');
-        
-        const res = await fetch(`/api/search?${params}`);
-        if (!res.ok) throw new Error(`Search failed: ${res.status}`);
-        
-        const data = await res.json();
-        
-        if (data.jobId) {
-          // Poll for results
-          setLoadingMessage('Deep search in progress...');
-          await pollForResults(data.jobId);
-          return;
-        }
+      const splitTickets: SplitTicket[] = streamedSplitTickets.map((st: StreamedSplitTicket) => ({
+        id: st.id,
+        tickets: st.legs.map((leg: any, idx: number) => ({
+          from: leg.from,
+          to: leg.to,
+          price: leg.price,
+          airline: leg.airline,
+          flightNumber: leg.flightNumber,
+          direction: idx < st.legs.length / 2 ? 'outbound' : 'return',
+          step: (idx % (st.legs.length / 2)) + 1,
+          bookingLink: leg.bookingLink
+        })),
+        totalPrice: st.totalPrice,
+        savings: st.savings,
+        currency: 'GBP',
+        feasibility: st.feasibility,
+        riskScore: st.riskScore,
+        warnings: st.warnings || []
+      }));
+      
+      setResults(prev => ({
+        ...prev!,
+        flights,
+        splitTickets,
+        airports: { origin: [origin], destination: [destination] },
+        deals: prev?.deals || []
+      }));
+      
+      if (splitTickets.length > 0) {
+        setActiveTab('split');
       }
-      
-      // Quick search (synchronous)
-      const res = await fetch(`/api/search?${params}`, { 
-        signal: AbortSignal.timeout(15000)
-      });
-      
-      if (!res.ok) throw new Error(`Search failed: ${res.status}`);
-      
-      const data = await res.json();
-      processSearchResults(data);
-      
-    } catch (e: any) {
-      console.error('Search error:', e);
-      alert('Search failed: ' + (e.message || 'Unknown error'));
-    } finally {
+    }
+  }, [streamedFlights, streamedSplitTickets]);
+  
+  // NEW: Sync streaming progress to loading state
+  useEffect(() => {
+    if (isStreamSearching) {
+      setLoading(true);
+      setLoadingStep(Math.min(3, 1 + Math.floor(streamProgress / 40)));
+      setLoadingMessage(streamMessage || 'Searching...');
+    } else if (streamStatus === 'complete' || streamStatus === 'error') {
       setLoading(false);
       setLoadingStep(0);
       setLoadingMessage('');
     }
-  };
-  
-  // Poll for async job results
-  const pollForResults = async (jobId: string) => {
-    const maxAttempts = 30; // 60 seconds max
+  }, [streamStatus, streamProgress, streamMessage, isStreamSearching]);
+
+  const searchFlights = async (useDeepSearch = false) => {
+    if (!origin || !destination) return;
     
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(r => setTimeout(r, 2000));
+    if (useDeepSearch) {
+      // NEW: Use streaming search (NEVER times out)
+      await startStreamSearch({
+        origin,
+        destination,
+        departureDate,
+        returnDate: returnDate || undefined,
+        travelClass
+      });
+    } else {
+      // Quick search (existing synchronous flow)
+      setLoading(true);
+      setLoadingStep(1);
+      setLoadingMessage('Searching flights...');
       
-      const res = await fetch(`/api/search/job?id=${jobId}`);
-      if (!res.ok) continue;
-      
-      const status = await res.json();
-      setLoadingStep(Math.min(3, 1 + Math.floor(status.progress / 40)));
-      setLoadingMessage(`Deep search: ${status.progress}%`);
-      
-      if (status.status === 'completed') {
-        processSearchResults(status.results);
+      try {
+        const params = new URLSearchParams({
+          origin, destination, departureDate,
+          travelClass,
+          includeSplit: 'true'
+        });
+        if (returnDate) params.append('returnDate', returnDate);
+        
+        const res = await fetch(`/api/search?${params}`, { 
+          signal: AbortSignal.timeout(15000)
+        });
+        
+        if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+        
+        const data = await res.json();
+        processSearchResults(data);
+        
+      } catch (e: any) {
+        console.error('Search error:', e);
+        alert('Search failed: ' + (e.message || 'Unknown error'));
+      } finally {
         setLoading(false);
-        return;
-      }
-      
-      if (status.status === 'failed') {
-        throw new Error(status.error || 'Deep search failed');
+        setLoadingStep(0);
+        setLoadingMessage('');
       }
     }
-    
-    throw new Error('Deep search timeout');
   };
   
   // Process search results

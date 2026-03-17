@@ -1,18 +1,17 @@
 /**
- * REAL SPLIT-TICKET ENGINE
- * Combines real flights with transfer feasibility analysis
+ * PARALLEL SPLIT-TICKET ENGINE
+ * Searches all hubs simultaneously for maximum speed
  */
 
-import { scrapeGoogleFlightsReal } from './scraper-real';
-import { validateFlight, ValidatedFlight } from './validation';
+import { scrapeGoogleFlightsReal, RealFlight } from './scraper-real';
 
 export interface SplitTicketLeg {
   from: string;
   to: string;
   airline: string;
   flightNumber: string;
-  departure: string;  // ISO datetime
-  arrival: string;    // ISO datetime
+  departure: string;
+  arrival: string;
   price: number;
   currency: string;
   bookingLink: string;
@@ -25,13 +24,12 @@ export interface SplitTicketOption {
   directPrice: number;
   savings: number;
   currency: string;
-  transferTime: number;  // minutes
-  riskScore: number;     // 0-100 (lower is better)
+  transferTime: number;
+  riskScore: number;
   feasibility: 'good' | 'tight' | 'risky';
   warnings: string[];
 }
 
-// Major hubs for split ticketing
 const HUBS = [
   { code: 'DXB', name: 'Dubai', region: 'ME' },
   { code: 'DOH', name: 'Doha', region: 'ME' },
@@ -45,56 +43,221 @@ const HUBS = [
   { code: 'LHR', name: 'London', region: 'EU' }
 ];
 
-// Minimum connection times by airport (minutes)
 const MIN_CONNECTION_TIMES: Record<string, number> = {
-  'DXB': 90,
-  'DOH': 90,
-  'IST': 90,
-  'AMS': 60,
-  'CDG': 75,
-  'FRA': 60,
-  'SIN': 60,
-  'HKG': 60,
-  'BKK': 90,
-  'LHR': 90,
-  'JFK': 120,
-  'LAX': 90,
-  'DEFAULT': 90
+  'DXB': 90, 'DOH': 90, 'IST': 90, 'AMS': 60, 'CDG': 75,
+  'FRA': 60, 'SIN': 60, 'HKG': 60, 'BKK': 90, 'LHR': 90,
+  'JFK': 120, 'LAX': 90, 'DEFAULT': 90
 };
 
-function getMinConnectionTime(airport: string): number {
-  return MIN_CONNECTION_TIMES[airport] || MIN_CONNECTION_TIMES['DEFAULT'];
+/**
+ * Find split tickets in PARALLEL
+ * All hubs searched simultaneously
+ */
+export async function findSplitTicketsParallel(
+  origin: string,
+  destination: string,
+  departureDate: string,
+  directPrice: number,
+  options: { maxHubs?: number } = {}
+): Promise<SplitTicketOption[]> {
+  const { maxHubs = 5 } = options;
+  
+  const relevantHubs = HUBS
+    .filter(h => h.code !== origin && h.code !== destination)
+    .slice(0, maxHubs);
+  
+  console.log(`[SplitEngine] Parallel search across ${relevantHubs.length} hubs`);
+  
+  // Search ALL hubs in parallel
+  const hubPromises = relevantHubs.map(hub => 
+    searchHubWithTimeout(origin, destination, departureDate, hub.code, directPrice, 8000)
+  );
+  
+  // Wait for all to complete (success or timeout)
+  const hubResults = await Promise.allSettled(hubPromises);
+  
+  // Collect successful results
+  const allOptions: SplitTicketOption[] = [];
+  hubResults.forEach((result, index) => {
+    if (result.status === 'fulfilled' && result.value) {
+      allOptions.push(...result.value);
+      console.log(`[SplitEngine] Hub ${relevantHubs[index].code}: ${result.value.length} options`);
+    } else {
+      console.log(`[SplitEngine] Hub ${relevantHubs[index].code}: failed or timeout`);
+    }
+  });
+  
+  // Sort by savings, then by risk
+  allOptions.sort((a, b) => {
+    if (b.savings !== a.savings) return b.savings - a.savings;
+    return a.riskScore - b.riskScore;
+  });
+  
+  console.log(`[SplitEngine] Total valid splits: ${allOptions.length}`);
+  return allOptions.slice(0, 5);
 }
 
-function parseTime(timeStr: string, dateStr: string): Date {
-  // Handle various time formats
-  const [time, period] = timeStr.split(' ');
-  let [hours, minutes] = time.split(':').map(Number);
+/**
+ * Search a single hub with timeout
+ * Returns null on failure (doesn't kill the whole search)
+ */
+async function searchHubWithTimeout(
+  origin: string,
+  destination: string,
+  date: string,
+  hub: string,
+  directPrice: number,
+  timeoutMs: number
+): Promise<SplitTicketOption[] | null> {
+  return Promise.race([
+    searchHub(origin, destination, date, hub, directPrice),
+    new Promise<null>((_, reject) => 
+      setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
+    )
+  ]).catch(() => null);  // Return null on timeout/error
+}
+
+/**
+ * Search flights via a specific hub
+ */
+async function searchHub(
+  origin: string,
+  destination: string,
+  date: string,
+  hub: string,
+  directPrice: number
+): Promise<SplitTicketOption[]> {
+  const results: SplitTicketOption[] = [];
   
+  try {
+    // Search both legs in parallel
+    const [leg1Flights, leg2Flights] = await Promise.all([
+      scrapeGoogleFlightsReal(origin, hub, date, { maxResults: 3 }),
+      scrapeGoogleFlightsReal(hub, destination, date, { maxResults: 3 })
+    ]);
+    
+    if (leg1Flights.length === 0 || leg2Flights.length === 0) {
+      return results;
+    }
+    
+    // Find valid combinations
+    for (const leg1 of leg1Flights) {
+      for (const leg2 of leg2Flights) {
+        const option = createSplitOption(leg1, leg2, hub, directPrice);
+        if (option) {
+          results.push(option);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error(`[SplitEngine] Error searching hub ${hub}:`, error);
+  }
+  
+  return results;
+}
+
+/**
+ * Create a split ticket option if the connection is valid
+ */
+function createSplitOption(
+  leg1: RealFlight,
+  leg2: RealFlight,
+  hub: string,
+  directPrice: number
+): SplitTicketOption | null {
+  // Parse times
+  const leg1Arrival = parseTime(leg1.arrival.time, leg1.arrival.date);
+  const leg2Departure = parseTime(leg2.departure.time, leg2.departure.date);
+  
+  if (!leg1Arrival || !leg2Departure) return null;
+  
+  const transferTime = Math.round((leg2Departure.getTime() - leg1Arrival.getTime()) / 60000);
+  const minRequired = MIN_CONNECTION_TIMES[hub] || MIN_CONNECTION_TIMES['DEFAULT'];
+  
+  // Skip impossible connections
+  if (transferTime < minRequired - 30) return null;
+  
+  const riskScore = calculateRiskScore(transferTime, minRequired);
+  
+  // Skip very high risk
+  if (riskScore > 80) return null;
+  
+  const totalPrice = leg1.price + leg2.price;
+  const savings = directPrice - totalPrice;
+  
+  // Must save money
+  if (savings <= 0) return null;
+  
+  const warnings: string[] = [];
+  if (riskScore > 50) warnings.push('Tight connection - risk of missing flight');
+  if (leg1.airline !== leg2.airline) warnings.push('Self-transfer - collect and re-check bags');
+  if (transferTime > 480) warnings.push('Long layover - consider exploring the city');
+  
+  return {
+    id: `split-${hub}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    legs: [
+      {
+        from: leg1.departure.airport,
+        to: leg1.arrival.airport,
+        airline: leg1.airline,
+        flightNumber: leg1.flightNumber || `${leg1.airlineCode}XXX`,
+        departure: `${leg1.departure.date}T${leg1.departure.time}`,
+        arrival: `${leg1.arrival.date}T${leg1.arrival.time}`,
+        price: leg1.price,
+        currency: leg1.currency,
+        bookingLink: leg1.bookingLink
+      },
+      {
+        from: leg2.departure.airport,
+        to: leg2.arrival.airport,
+        airline: leg2.airline,
+        flightNumber: leg2.flightNumber || `${leg2.airlineCode}XXX`,
+        departure: `${leg2.departure.date}T${leg2.departure.time}`,
+        arrival: `${leg2.arrival.date}T${leg2.arrival.time}`,
+        price: leg2.price,
+        currency: leg2.currency,
+        bookingLink: leg2.bookingLink
+      }
+    ],
+    totalPrice,
+    directPrice,
+    savings,
+    currency: 'GBP',
+    transferTime,
+    riskScore,
+    feasibility: getFeasibility(riskScore),
+    warnings
+  };
+}
+
+function parseTime(timeStr: string, dateStr: string): Date | null {
+  if (!timeStr || !dateStr) return null;
+  
+  const [time, period] = timeStr.split(' ');
+  const [hours, minutes] = time.split(':').map(Number);
+  
+  if (isNaN(hours) || isNaN(minutes)) return null;
+  
+  let adjustedHours = hours;
   if (period) {
-    if (period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
-    if (period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    if (period.toUpperCase() === 'PM' && hours !== 12) adjustedHours += 12;
+    if (period.toUpperCase() === 'AM' && hours === 12) adjustedHours = 0;
   }
   
   const date = new Date(dateStr);
-  date.setHours(hours, minutes, 0, 0);
+  date.setHours(adjustedHours, minutes, 0, 0);
   return date;
-}
-
-function calculateTransferTime(arrival: string, nextDeparture: string): number {
-  const arr = new Date(arrival);
-  const dep = new Date(nextDeparture);
-  return Math.round((dep.getTime() - arr.getTime()) / 60000); // minutes
 }
 
 function calculateRiskScore(transferTime: number, minRequired: number): number {
   const buffer = transferTime - minRequired;
   
-  if (buffer >= 120) return 10;  // 2+ hours - very safe
-  if (buffer >= 60) return 25;   // 1-2 hours - safe
-  if (buffer >= 30) return 50;   // 30-60 min - tight
-  if (buffer >= 0) return 75;    // 0-30 min - risky
-  return 100;                      // Negative - impossible
+  if (buffer >= 120) return 10;
+  if (buffer >= 60) return 25;
+  if (buffer >= 30) return 50;
+  if (buffer >= 0) return 75;
+  return 100;
 }
 
 function getFeasibility(riskScore: number): 'good' | 'tight' | 'risky' {
@@ -103,120 +266,13 @@ function getFeasibility(riskScore: number): 'good' | 'tight' | 'risky' {
   return 'risky';
 }
 
-/**
- * Find real split-ticket combinations
- */
+// Backward compatibility
 export async function findSplitTickets(
   origin: string,
   destination: string,
   departureDate: string,
   directPrice: number,
-  options: {
-    maxHubs?: number;
-    returnDate?: string;
-  } = {}
+  options?: { maxHubs?: number }
 ): Promise<SplitTicketOption[]> {
-  const { maxHubs = 5, returnDate } = options;
-  const results: SplitTicketOption[] = [];
-  
-  console.log(`[SplitEngine] Finding splits ${origin} → ${destination} vs direct £${directPrice}`);
-  
-  // Filter relevant hubs (not origin/destination)
-  const relevantHubs = HUBS.filter(h => h.code !== origin && h.code !== destination).slice(0, maxHubs);
-  
-  for (const hub of relevantHubs) {
-    try {
-      // Search leg 1: Origin → Hub
-      const leg1Flights = await scrapeGoogleFlightsReal(origin, hub.code, departureDate, { maxResults: 3 });
-      
-      // Search leg 2: Hub → Destination
-      const leg2Flights = await scrapeGoogleFlightsReal(hub.code, destination, departureDate, { maxResults: 3 });
-      
-      if (leg1Flights.length === 0 || leg2Flights.length === 0) continue;
-      
-      // Find valid combinations
-      for (const leg1 of leg1Flights) {
-        for (const leg2 of leg2Flights) {
-          // Calculate transfer time
-          const leg1Arrival = `${leg1.departure.date}T${leg1.departure.time}`;
-          const leg2Departure = `${leg2.departure.date}T${leg2.departure.time}`;
-          
-          const transferTime = calculateTransferTime(leg1Arrival, leg2Departure);
-          const minRequired = getMinConnectionTime(hub.code);
-          
-          // Skip if impossible connection
-          if (transferTime < minRequired - 30) continue;  // Allow 30 min buffer for delays
-          
-          const riskScore = calculateRiskScore(transferTime, minRequired);
-          
-          // Skip high-risk connections
-          if (riskScore > 80) continue;
-          
-          const totalPrice = leg1.price + leg2.price;
-          const savings = directPrice - totalPrice;
-          
-          // Only include if saves money
-          if (savings <= 0) continue;
-          
-          const warnings: string[] = [];
-          if (riskScore > 50) warnings.push('Tight connection - risk of missing flight');
-          if (leg1.airline !== leg2.airline) warnings.push('Self-transfer - collect and re-check bags');
-          
-          results.push({
-            id: `split-${hub.code}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-            legs: [
-              {
-                from: leg1.departure.airport,
-                to: leg1.arrival.airport,
-                airline: leg1.airline,
-                flightNumber: leg1.flightNumber || `${leg1.airlineCode}XXX`,
-                departure: leg1Arrival,
-                arrival: `${leg1.arrival.date}T${leg1.arrival.time}`,
-                price: leg1.price,
-                currency: leg1.currency,
-                bookingLink: leg1.bookingLink
-              },
-              {
-                from: leg2.departure.airport,
-                to: leg2.arrival.airport,
-                airline: leg2.airline,
-                flightNumber: leg2.flightNumber || `${leg2.airlineCode}XXX`,
-                departure: leg2Departure,
-                arrival: `${leg2.arrival.date}T${leg2.arrival.time}`,
-                price: leg2.price,
-                currency: leg2.currency,
-                bookingLink: leg2.bookingLink
-              }
-            ],
-            totalPrice,
-            directPrice,
-            savings,
-            currency: 'GBP',
-            transferTime,
-            riskScore,
-            feasibility: getFeasibility(riskScore),
-            warnings
-          });
-        }
-      }
-      
-      // Add return legs if requested
-      if (returnDate) {
-        // Similar logic for return - simplified for now
-        // Full implementation would search return flights too
-      }
-      
-    } catch (error) {
-      console.error(`[SplitEngine] Error with hub ${hub.code}:`, error);
-    }
-  }
-  
-  // Sort by savings, then by risk score
-  results.sort((a, b) => {
-    if (b.savings !== a.savings) return b.savings - a.savings;
-    return a.riskScore - b.riskScore;
-  });
-  
-  console.log(`[SplitEngine] Found ${results.length} valid split options`);
-  return results.slice(0, 5);  // Top 5
+  return findSplitTicketsParallel(origin, destination, departureDate, directPrice, options);
 }
