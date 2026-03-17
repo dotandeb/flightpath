@@ -195,7 +195,7 @@ async function performQuickSearch(
     meta: {
       totalResults: validatedFlights.length,
       cheapestPrice: validatedFlights[0]?.price || 0,
-      sources: [...new Set(validatedFlights.map(f => f.source))],
+      sources: Array.from(new Set(validatedFlights.map(f => f.source))),
       errors: errors.length > 0 ? errors : undefined
     }
   };
