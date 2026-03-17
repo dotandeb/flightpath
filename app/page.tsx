@@ -969,7 +969,7 @@ export default function Home() {
               <p className="text-sm text-purple-700">Get real prices from Google Flights + split ticket analysis (takes 1-2 minutes)</p>
             </div>
             <button 
-              onClick={deepSearchWithScraper}
+              onClick={() => searchFlights(true)}
               disabled={loading}
               className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-50"
             >
