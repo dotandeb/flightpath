@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { scrapeGoogleFlights, scrapeSplitTicketLegs, closeBrowser } from '@/lib/scraper';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120; // 2 minutes max
+export const maxDuration = 60; // 60 seconds for hobby plan
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;

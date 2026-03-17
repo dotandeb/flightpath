@@ -4,7 +4,7 @@ import { scrapeGoogleFlights, scrapeSkyscanner } from '@/lib/scraper-v2';
 import { scrapePrices as deepScrapePrices } from '@/lib/deep-scraper';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+export const maxDuration = 60; // 60 seconds for hobby plan
 
 const POPULAR_HUBS = ['DXB', 'DOH', 'IST', 'AMS', 'CDG', 'FRA', 'SIN', 'LHR', 'HKG', 'BKK'];
 

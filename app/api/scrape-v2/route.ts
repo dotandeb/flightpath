@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { scrapeGoogleFlights, scrapeSplitTicketLegs, scrapeSkyscanner, closeBrowser } from '@/lib/scraper-v2';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 180; // 3 minutes max
+export const maxDuration = 60; // 60 seconds for hobby plan
 
 const HUBS = ['DXB', 'DOH', 'IST', 'AMS', 'CDG', 'FRA', 'SIN'];
 

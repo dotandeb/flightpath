@@ -245,9 +245,16 @@ export default function Home() {
     setShowOriginSuggestions(false);
   };
 
-  const selectDest = (airport: typeof AIRPORTS[0]) => {
-    setDestination(airport.code);
-    setShowDestSuggestions(false);
+  const handleDepartureDateChange = (value: string) => {
+    setDepartureDate(value);
+    // If return date is set and is before departure, update it
+    if (returnDate && returnDate < value) {
+      // Set return to 7 days after departure by default
+      const depDate = new Date(value);
+      const retDate = new Date(depDate);
+      retDate.setDate(retDate.getDate() + 7);
+      setReturnDate(format(retDate, 'yyyy-MM-dd'));
+    }
   };
 
   const totalPassengers = adults + children + infants;
@@ -592,7 +599,7 @@ export default function Home() {
               )}
             </div>
 
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Departure</label><div className="relative"><Calendar className="absolute left-3 top-3 w-5 h-5 text-gray-400" /><input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-lg" /></div></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Departure</label><div className="relative"><Calendar className="absolute left-3 top-3 w-5 h-5 text-gray-400" /><input type="date" value={departureDate} onChange={e => handleDepartureDateChange(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-lg" /></div></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Return (optional)</label><div className="relative"><Calendar className="absolute left-3 top-3 w-5 h-5 text-gray-400" /><input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-lg" /></div></div>
 
             <div ref={passengerRef} className="relative">
@@ -642,27 +649,32 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => searchFlightsCombined(false)} disabled={loading} className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg flex items-center gap-2">
+            <button onClick={() => searchFlightsCombined(false)} disabled={loading} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg flex items-center gap-2 hover:shadow-lg transition-shadow">
               {loading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   {loadingMessage}
                 </>
               ) : (
-                <><Search className="w-5 h-5" /> Search All Sources</>
+                <><Search className="w-5 h-5" /> Quick Search</>
               )}
             </button>
             
-            <button onClick={() => searchFlightsCombined(true)} disabled={loading} className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-pink-600 text-white font-semibold rounded-lg flex items-center gap-2">
+            <button onClick={() => searchFlightsCombined(true)} disabled={loading} className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg flex items-center gap-2 hover:shadow-lg transition-shadow">
               {loading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Deep Search
                 </>
               ) : (
-                <><Sparkles className="w-5 h-5" /> Deep Search (All Sources + Extra Scrapers)</>
+                <><Sparkles className="w-5 h-5" /> Deep Search</>
               )}
             </button>
+          </div>
+          
+          <div className="mt-2 flex gap-6 text-xs text-gray-500">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-600 rounded-full"></span> Quick: Amadeus API + Split tickets (fast)</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-purple-600 rounded-full"></span> Deep: + Google Flights scrape (1-2 min)</span>
           </div>
           
           {loading && (
@@ -807,15 +819,15 @@ export default function Home() {
           </div>
         )}
         
-      {/* Deep Research Section */}
-        <div className="mt-6 p-6 bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-800 rounded-2xl text-white">
+      {/* Multi-Route Research Section - Different from single route search above */}
+        <div className="mt-8 p-6 bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-800 rounded-2xl text-white border-2 border-purple-400/30">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="text-xl font-bold flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-yellow-300" />
-                Deep Research Mode
+                <Globe className="w-6 h-6 text-yellow-300" />
+                Multi-Route Research
               </h3>
-              <p className="text-indigo-200 mt-1">Comprehensive search across ALL airports. Find error fares, hidden routes, and maximize savings.</p>
+              <p className="text-indigo-200 mt-1">Not sure where to fly? We search ALL airports in entire regions (e.g., all Europe → all Asia) to find the cheapest routes.</p>
             </div>
             <span className="px-3 py-1 bg-yellow-400 text-yellow-900 text-xs font-bold rounded-full">BETA</span>
           </div>
