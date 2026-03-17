@@ -5,13 +5,13 @@
   },
   "functions": {
     "app/api/combined-search/route.ts": {
-      "maxDuration": 300
+      "maxDuration": 60
     },
     "app/api/scrape-v2/route.ts": {
-      "maxDuration": 120
+      "maxDuration": 60
     },
     "app/api/deep-research/route.ts": {
-      "maxDuration": 300
+      "maxDuration": 60
     }
   }
 }
