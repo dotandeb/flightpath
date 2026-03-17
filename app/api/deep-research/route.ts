@@ -9,7 +9,7 @@ import {
 } from '@/lib/deep-scraper';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 600; // 10 minutes max for deep research
+export const maxDuration = 60; // 60 seconds for hobby plan
 
 // Deep research endpoint - comprehensive search across many routes
 export async function GET(request: NextRequest) {
