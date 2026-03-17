@@ -2,16 +2,5 @@
   "version": 2,
   "env": {
     "NEXT_PUBLIC_APP_URL": "https://flightpath.solutions"
-  },
-  "functions": {
-    "app/api/combined-search/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/scrape-v2/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/deep-research/route.ts": {
-      "maxDuration": 60
-    }
   }
 }
