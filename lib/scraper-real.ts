@@ -1,10 +1,8 @@
 /**
  * SERVERLESS SCRAPER for Vercel
  * Uses @sparticuz/chromium-min for serverless compatibility
+ * Dynamically imports to avoid webpack issues
  */
-
-import chromium from '@sparticuz/chromium-min';
-import { chromium as playwrightChromium } from 'playwright-core';
 
 export interface RealFlight {
   id: string;
@@ -33,20 +31,8 @@ export interface RealFlight {
 const CHROMIUM_EXECUTABLE = process.env.CHROME_EXECUTABLE_PATH || '/tmp/chromium';
 
 /**
- * Launch serverless browser
- */
-async function launchBrowser() {
-  const executablePath = await chromium.executablePath(CHROMIUM_EXECUTABLE);
-  
-  return playwrightChromium.launch({
-    args: chromium.args,
-    executablePath,
-    headless: chromium.headless,
-  });
-}
-
-/**
  * Scrape Google Flights - Serverless compatible
+ * Dynamically imports to avoid webpack bundling issues
  */
 export async function scrapeGoogleFlightsReal(
   origin: string,
@@ -55,10 +41,22 @@ export async function scrapeGoogleFlightsReal(
   options: { returnDate?: string; maxResults?: number } = {}
 ): Promise<RealFlight[]> {
   const { returnDate, maxResults = 10 } = options;
+  
+  // Dynamic imports - only load on server
+  const chromium = await import('@sparticuz/chromium-min');
+  const { chromium: playwrightChromium } = await import('playwright-core');
+  
   let browser = null;
   
   try {
-    browser = await launchBrowser();
+    const executablePath = await chromium.default.executablePath(CHROMIUM_EXECUTABLE);
+    
+    browser = await playwrightChromium.launch({
+      args: chromium.default.args,
+      executablePath,
+      headless: chromium.default.headless,
+    });
+    
     const context = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -212,10 +210,22 @@ export async function scrapeSkyscannerReal(
   options: { maxResults?: number } = {}
 ): Promise<RealFlight[]> {
   const { maxResults = 8 } = options;
+  
+  // Dynamic imports
+  const chromium = await import('@sparticuz/chromium-min');
+  const { chromium: playwrightChromium } = await import('playwright-core');
+  
   let browser = null;
   
   try {
-    browser = await launchBrowser();
+    const executablePath = await chromium.default.executablePath(CHROMIUM_EXECUTABLE);
+    
+    browser = await playwrightChromium.launch({
+      args: chromium.default.args,
+      executablePath,
+      headless: chromium.default.headless,
+    });
+    
     const context = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
     });
@@ -276,5 +286,5 @@ export async function scrapeSkyscannerReal(
 }
 
 export async function closeBrowser(): Promise<void> {
-  // No-op for serverless - browsers are per-request
+  // No-op for serverless
 }
