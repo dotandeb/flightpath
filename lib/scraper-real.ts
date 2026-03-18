@@ -27,8 +27,8 @@ export interface RealFlight {
   source: string;
 }
 
-// Chromium executable path for serverless
-const CHROMIUM_EXECUTABLE = process.env.CHROME_EXECUTABLE_PATH || '/tmp/chromium';
+// Remote Chromium executable for serverless
+const CHROMIUM_URL = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar';
 
 /**
  * Scrape Google Flights - Serverless compatible
@@ -49,7 +49,10 @@ export async function scrapeGoogleFlightsReal(
   let browser = null;
   
   try {
-    const executablePath = await chromium.default.executablePath(CHROMIUM_EXECUTABLE);
+    const isDev = !process.env.VERCEL;
+    const executablePath = isDev 
+      ? undefined 
+      : await chromium.default.executablePath(CHROMIUM_URL);
     
     browser = await playwrightChromium.launch({
       args: chromium.default.args,
@@ -218,7 +221,10 @@ export async function scrapeSkyscannerReal(
   let browser = null;
   
   try {
-    const executablePath = await chromium.default.executablePath(CHROMIUM_EXECUTABLE);
+    const isDev = !process.env.VERCEL;
+    const executablePath = isDev 
+      ? undefined 
+      : await chromium.default.executablePath(CHROMIUM_URL);
     
     browser = await playwrightChromium.launch({
       args: chromium.default.args,

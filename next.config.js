@@ -21,6 +21,11 @@ const nextConfig = {
   // Don't bundle these for serverless functions
   experimental: {
     serverComponentsExternalPackages: ['@sparticuz/chromium-min', 'playwright-core'],
+    outputFileTracingIncludes: {
+      '/api/search': ['./node_modules/@sparticuz/chromium-min/**/*'],
+      '/api/stream/search': ['./node_modules/@sparticuz/chromium-min/**/*'],
+      '/api/scrape-v2': ['./node_modules/@sparticuz/chromium-min/**/*'],
+    },
   },
   async headers() {
     return [
