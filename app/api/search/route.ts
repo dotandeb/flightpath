@@ -35,7 +35,7 @@ const AIRLINE_ROUTES: Record<string, string[]> = {
   'JFK-SIN': ['SQ'],
   'LAX-LHR': ['BA', 'VS', 'AA', 'UA'],
   'LAX-CDG': ['AF', 'AA', 'DL'],
-  'LAX-NRT': ['JL', 'ANA', 'AA'],
+  'LAX-NRT': ['JL', 'NH', 'AA'],
   'LAX-SYD': ['QF', 'AA', 'DL'],
   'CDG-JFK': ['AF', 'AA', 'DL'],
   'CDG-LAX': ['AF', 'AA', 'DL'],
@@ -61,12 +61,27 @@ const AIRLINE_NAMES: Record<string, string> = {
   'IB': 'Iberia',
   'AZ': 'ITA Airways',
   'JL': 'Japan Airlines',
-  'ANA': 'All Nippon Airways',
+  'NH': 'ANA',
   'BE': 'British Airways',
+  'TK': 'Turkish Airlines',
+};
+
+// Hub-specific airlines (which airline operates through each hub)
+const HUB_AIRLINES: Record<string, { code: string; name: string }> = {
+  'DXB': { code: 'EK', name: 'Emirates' },
+  'DOH': { code: 'QR', name: 'Qatar Airways' },
+  'IST': { code: 'TK', name: 'Turkish Airlines' },
+  'AMS': { code: 'KL', name: 'KLM' },
+  'CDG': { code: 'AF', name: 'Air France' },
+  'FRA': { code: 'LH', name: 'Lufthansa' },
+  'SIN': { code: 'SQ', name: 'Singapore Airlines' },
+  'HKG': { code: 'CX', name: 'Cathay Pacific' },
+  'FCO': { code: 'AZ', name: 'ITA Airways' },
+  'MAD': { code: 'IB', name: 'Iberia' },
 };
 
 // Hub airports for split tickets
-const HUBS = ['DXB', 'DOH', 'IST', 'AMS', 'CDG', 'FRA', 'SIN', 'HKG'];
+const HUBS = Object.keys(HUB_AIRLINES);
 
 interface Flight {
   id: string;
@@ -95,14 +110,46 @@ function generateTime(date: string, hourOffset: number): string {
 }
 
 function calculateDuration(from: string, to: string): { hours: number; mins: number } {
-  // Rough estimates based on common routes
-  const longHaul = ['LHR', 'JFK', 'LAX', 'SFO', 'SIN', 'SYD', 'HKG', 'BKK', 'DXB', 'NRT'];
+  const longHaul = ['LHR', 'JFK', 'LAX', 'SFO', 'SIN', 'SYD', 'HKG', 'BKK', 'DXB', 'NRT', 'HND', 'MEL', 'AKL'];
   const isLongHaul = longHaul.includes(from) && longHaul.includes(to);
   
   if (isLongHaul) {
     return { hours: 11 + Math.floor(Math.random() * 6), mins: Math.floor(Math.random() * 60) };
   }
   return { hours: 2 + Math.floor(Math.random() * 3), mins: Math.floor(Math.random() * 60) };
+}
+
+// Generate Google Flights booking link
+function generateBookingLink(
+  origin: string, 
+  destination: string, 
+  date: string, 
+  travelClass: string,
+  adults: number
+): string {
+  // Google Flights format: flights/search?tfs=CBwQA... (base64 encoded)
+  // Simpler format: just search with parameters
+  const classMap: Record<string, string> = {
+    'ECONOMY': '1',
+    'PREMIUM_ECONOMY': '2',
+    'BUSINESS': '3',
+    'FIRST': '4',
+  };
+  
+  // Format date for Google: YYYY-MM-DD
+  const year = date.slice(0, 4);
+  const month = date.slice(5, 7);
+  const day = date.slice(8, 10);
+  
+  // Build Google Flights search URL
+  const baseUrl = 'https://www.google.com/travel/flights';
+  const searchParams = new URLSearchParams({
+    'q': `Flights to ${destination} from ${origin} on ${date}`,
+    'hl': 'en',
+    'curr': 'GBP',
+  });
+  
+  return `${baseUrl}?${searchParams.toString()}`;
 }
 
 function generateFlightsForRoute(
@@ -129,10 +176,6 @@ function generateFlightsForRoute(
   };
   const multiplier = classMultipliers[travelClass] || 1;
   
-  // Format date for Skyscanner: YYYY-MM-DD -> YYMMDD
-  const dateParts = date.split('-');
-  const skyscannerDate = dateParts[0].slice(2) + dateParts[1] + dateParts[2];
-  
   for (let i = 0; i < Math.min(6, airlines.length); i++) {
     const airline = airlines[i];
     const flightNum = generateFlightNumber(airline);
@@ -153,12 +196,8 @@ function generateFlightsForRoute(
     const arrivalTime = `${(arrHour % 24).toString().padStart(2, '0')}:${arrMin.toString().padStart(2, '0')}`;
     const nextDay = arrHour >= 24;
     
-    // Skyscanner booking link with real parameters
-    const cabinClass = travelClass === 'PREMIUM_ECONOMY' ? 'premiumeconomy' : 
-                       travelClass === 'ECONOMY' ? 'economy' :
-                       travelClass.toLowerCase();
-    
-    const bookingLink = `https://www.skyscanner.net/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}/?adults=${adults}&adultsv2=${adults}&cabinclass=${cabinClass}&children=0&childrenv2=&inboundaltsen=ut&outboundaltsen=ut&preferdirects=false&outboundaltsen=ut&oym=${skyscannerDate}`;
+    // Generate proper booking link
+    const bookingLink = generateBookingLink(origin, destination, date, travelClass, adults);
     
     flights.push({
       id: `${airline}-${Date.now()}-${i}`,
@@ -188,42 +227,96 @@ function generateFlightsForRoute(
   return flights.sort((a, b) => a.price - b.price);
 }
 
-function generateSplitTickets(origin: string, destination: string, date: string, directFlights: Flight[]): any[] {
+function generateSplitTickets(
+  origin: string, 
+  destination: string, 
+  date: string, 
+  directFlights: Flight[],
+  travelClass: string = 'ECONOMY',
+  adults: number = 1
+): any[] {
   const splitTickets: any[] = [];
   const cheapestDirect = directFlights[0]?.price || 500;
   
-  // Find relevant hubs
-  const relevantHubs = HUBS.filter(h => h !== origin && h !== destination).slice(0, 3);
+  // Get relevant hubs based on origin-destination geography
+  let relevantHubs = HUBS.filter(h => h !== origin && h !== destination);
   
-  for (const hub of relevantHubs) {
-    // Generate leg prices
-    const leg1Price = Math.floor(cheapestDirect * 0.4 + Math.random() * 100);
-    const leg2Price = Math.floor(cheapestDirect * 0.45 + Math.random() * 100);
+  // Prioritize hubs that make sense for the route
+  const europeanAirports = ['LHR', 'CDG', 'AMS', 'FRA', 'FCO', 'MAD', 'IST'];
+  const asianAirports = ['SIN', 'HKG', 'BKK', 'DXB', 'DOH', 'NRT', 'HND'];
+  const usAirports = ['JFK', 'LAX', 'SFO', 'MIA', 'BOS', 'ORD'];
+  
+  const originIsEurope = europeanAirports.includes(origin);
+  const destIsUS = usAirports.includes(destination);
+  const originIsUS = usAirports.includes(origin);
+  const destIsEurope = europeanAirports.includes(destination);
+  const destIsAsia = asianAirports.includes(destination);
+  
+  if ((originIsEurope && destIsUS) || (originIsUS && destIsEurope)) {
+    // Transatlantic - prioritize European hubs and ME3
+    relevantHubs = ['FRA', 'CDG', 'AMS', 'IST', 'DXB', 'DOH'];
+  } else if ((originIsEurope || originIsUS) && destIsAsia) {
+    // To Asia - prioritize ME3 and Asian hubs
+    relevantHubs = ['DXB', 'DOH', 'IST', 'SIN', 'HKG'];
+  }
+  
+  // Filter out invalid hubs
+  relevantHubs = relevantHubs.filter(h => h !== origin && h !== destination);
+  
+  for (const hub of relevantHubs.slice(0, 3)) {
+    const hubAirline = HUB_AIRLINES[hub];
+    if (!hubAirline) continue;
+    
+    // Calculate realistic leg prices
+    // Via hub is usually cheaper but takes longer
+    const leg1Distance = 0.6; // Origin to hub
+    const leg2Distance = 0.5; // Hub to destination (may be backtracking)
+    
+    const leg1Base = cheapestDirect * leg1Distance * (0.8 + Math.random() * 0.3);
+    const leg2Base = cheapestDirect * leg2Distance * (0.7 + Math.random() * 0.3);
+    
+    // Apply class multiplier
+    const classMultipliers: Record<string, number> = {
+      'ECONOMY': 1,
+      'PREMIUM_ECONOMY': 1.8,
+      'BUSINESS': 3.5,
+      'FIRST': 8,
+    };
+    const multiplier = classMultipliers[travelClass] || 1;
+    
+    const leg1Price = Math.floor(leg1Base * multiplier * adults);
+    const leg2Price = Math.floor(leg2Base * multiplier * adults);
     const totalPrice = leg1Price + leg2Price;
     const savings = cheapestDirect - totalPrice;
     
-    if (savings > 50) {
+    // Only show if there's actual savings
+    if (savings > 30) {
       splitTickets.push({
         id: `split-${hub}-${Date.now()}`,
         hub,
+        hubName: hubAirline.name,
         tickets: [
           {
             from: origin,
             to: hub,
-            airline: AIRLINE_NAMES['EK'] || 'Emirates',
-            flightNumber: generateFlightNumber('EK'),
-            price: leg1Price
+            airline: hubAirline.name,
+            flightNumber: generateFlightNumber(hubAirline.code),
+            price: leg1Price,
+            layover: '2h 30m'
           },
           {
             from: hub,
             to: destination,
-            airline: AIRLINE_NAMES['EK'] || 'Emirates',
-            flightNumber: generateFlightNumber('EK'),
-            price: leg2Price
+            airline: hubAirline.name,
+            flightNumber: generateFlightNumber(hubAirline.code),
+            price: leg2Price,
+            layover: null
           }
         ],
         totalPrice,
-        savings
+        savings,
+        totalDuration: `${Math.floor((calculateDuration(origin, hub).hours + calculateDuration(hub, destination).hours) * 1.3)}h`,
+        bookingLink: generateBookingLink(origin, destination, date, travelClass, adults)
       });
     }
   }
@@ -256,7 +349,7 @@ export async function GET(request: NextRequest) {
     
     // Generate split tickets if we have direct flights
     const splitTickets = flights.length > 0 
-      ? generateSplitTickets(origin, destination, departureDate, flights)
+      ? generateSplitTickets(origin, destination, departureDate, flights, travelClass, adults)
       : [];
     
     const searchTime = Date.now() - startTime;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plane, Search, Calendar, MapPin, Users, Sparkles } from 'lucide-react';
+import { Plane, Search, Calendar, MapPin, Users, Sparkles, ArrowRight, Clock } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 
 interface Flight {
@@ -20,39 +20,41 @@ interface Flight {
   bookingLink: string;
 }
 
+interface SplitTicketLeg {
+  from: string;
+  to: string;
+  airline: string;
+  flightNumber: string;
+  price: number;
+  layover: string | null;
+}
+
 interface SplitTicket {
   id: string;
   hub: string;
-  tickets: Array<{
-    from: string;
-    to: string;
-    airline: string;
-    flightNumber: string;
-    price: number;
-  }>;
+  hubName: string;
+  tickets: SplitTicketLeg[];
   totalPrice: number;
   savings: number;
+  totalDuration: string;
+  bookingLink: string;
 }
 
 // Full airport database
 const AIRPORTS = [
-  // London
   { code: 'LHR', name: 'London Heathrow', city: 'London', country: 'UK' },
   { code: 'LGW', name: 'London Gatwick', city: 'London', country: 'UK' },
   { code: 'STN', name: 'London Stansted', city: 'London', country: 'UK' },
   { code: 'LTN', name: 'London Luton', city: 'London', country: 'UK' },
   { code: 'LCY', name: 'London City', city: 'London', country: 'UK' },
   { code: 'SEN', name: 'London Southend', city: 'London', country: 'UK' },
-  // New York
   { code: 'JFK', name: 'New York JFK', city: 'New York', country: 'USA' },
   { code: 'LGA', name: 'New York LaGuardia', city: 'New York', country: 'USA' },
   { code: 'EWR', name: 'Newark', city: 'New York', country: 'USA' },
-  // Major hubs
   { code: 'CDG', name: 'Paris CDG', city: 'Paris', country: 'France' },
   { code: 'ORY', name: 'Paris Orly', city: 'Paris', country: 'France' },
   { code: 'AMS', name: 'Amsterdam', city: 'Amsterdam', country: 'Netherlands' },
   { code: 'FRA', name: 'Frankfurt', city: 'Frankfurt', country: 'Germany' },
-  { code: 'MUC', name: 'Munich', city: 'Munich', country: 'Germany' },
   { code: 'DXB', name: 'Dubai', city: 'Dubai', country: 'UAE' },
   { code: 'DOH', name: 'Doha', city: 'Doha', country: 'Qatar' },
   { code: 'IST', name: 'Istanbul', city: 'Istanbul', country: 'Turkey' },
@@ -62,90 +64,16 @@ const AIRPORTS = [
   { code: 'NRT', name: 'Tokyo Narita', city: 'Tokyo', country: 'Japan' },
   { code: 'HND', name: 'Tokyo Haneda', city: 'Tokyo', country: 'Japan' },
   { code: 'SYD', name: 'Sydney', city: 'Sydney', country: 'Australia' },
-  { code: 'MEL', name: 'Melbourne', city: 'Melbourne', country: 'Australia' },
-  // US
   { code: 'LAX', name: 'Los Angeles', city: 'Los Angeles', country: 'USA' },
   { code: 'SFO', name: 'San Francisco', city: 'San Francisco', country: 'USA' },
-  { code: 'ORD', name: 'Chicago O\'Hare', city: 'Chicago', country: 'USA' },
+  { code: 'ORD', name: 'Chicago', city: 'Chicago', country: 'USA' },
   { code: 'MIA', name: 'Miami', city: 'Miami', country: 'USA' },
   { code: 'BOS', name: 'Boston', city: 'Boston', country: 'USA' },
-  { code: 'SEA', name: 'Seattle', city: 'Seattle', country: 'USA' },
-  { code: 'LAS', name: 'Las Vegas', city: 'Las Vegas', country: 'USA' },
-  { code: 'DFW', name: 'Dallas', city: 'Dallas', country: 'USA' },
-  { code: 'DEN', name: 'Denver', city: 'Denver', country: 'USA' },
-  { code: 'ATL', name: 'Atlanta', city: 'Atlanta', country: 'USA' },
-  // UK
-  { code: 'MAN', name: 'Manchester', city: 'Manchester', country: 'UK' },
-  { code: 'EDI', name: 'Edinburgh', city: 'Edinburgh', country: 'UK' },
-  { code: 'BHX', name: 'Birmingham', city: 'Birmingham', country: 'UK' },
-  { code: 'GLA', name: 'Glasgow', city: 'Glasgow', country: 'UK' },
-  { code: 'DUB', name: 'Dublin', city: 'Dublin', country: 'Ireland' },
-  // Europe
+  { code: 'FCO', name: 'Rome', city: 'Rome', country: 'Italy' },
   { code: 'MAD', name: 'Madrid', city: 'Madrid', country: 'Spain' },
   { code: 'BCN', name: 'Barcelona', city: 'Barcelona', country: 'Spain' },
-  { code: 'FCO', name: 'Rome Fiumicino', city: 'Rome', country: 'Italy' },
-  { code: 'MXP', name: 'Milan Malpensa', city: 'Milan', country: 'Italy' },
-  { code: 'VIE', name: 'Vienna', city: 'Vienna', country: 'Austria' },
-  { code: 'ZRH', name: 'Zurich', city: 'Zurich', country: 'Switzerland' },
-  { code: 'CPH', name: 'Copenhagen', city: 'Copenhagen', country: 'Denmark' },
-  { code: 'ARN', name: 'Stockholm', city: 'Stockholm', country: 'Sweden' },
-  { code: 'OSL', name: 'Oslo', city: 'Oslo', country: 'Norway' },
-  { code: 'HEL', name: 'Helsinki', city: 'Helsinki', country: 'Finland' },
-  { code: 'WAW', name: 'Warsaw', city: 'Warsaw', country: 'Poland' },
-  { code: 'PRG', name: 'Prague', city: 'Prague', country: 'Czech Republic' },
-  { code: 'BUD', name: 'Budapest', city: 'Budapest', country: 'Hungary' },
-  { code: 'ATH', name: 'Athens', city: 'Athens', country: 'Greece' },
-  { code: 'LIS', name: 'Lisbon', city: 'Lisbon', country: 'Portugal' },
-  { code: 'BRU', name: 'Brussels', city: 'Brussels', country: 'Belgium' },
-  // Asia
-  { code: 'ICN', name: 'Seoul', city: 'Seoul', country: 'South Korea' },
-  { code: 'KUL', name: 'Kuala Lumpur', city: 'Kuala Lumpur', country: 'Malaysia' },
-  { code: 'CGK', name: 'Jakarta', city: 'Jakarta', country: 'Indonesia' },
-  { code: 'MNL', name: 'Manila', city: 'Manila', country: 'Philippines' },
-  { code: 'BOM', name: 'Mumbai', city: 'Mumbai', country: 'India' },
-  { code: 'DEL', name: 'Delhi', city: 'Delhi', country: 'India' },
-  { code: 'BLR', name: 'Bangalore', city: 'Bangalore', country: 'India' },
-  { code: 'MAA', name: 'Chennai', city: 'Chennai', country: 'India' },
-  { code: 'HYD', name: 'Hyderabad', city: 'Hyderabad', country: 'India' },
-  { code: 'CCU', name: 'Kolkata', city: 'Kolkata', country: 'India' },
-  { code: 'PNQ', name: 'Pune', city: 'Pune', country: 'India' },
-  { code: 'GOI', name: 'Goa', city: 'Goa', country: 'India' },
-  { code: 'COK', name: 'Kochi', city: 'Kochi', country: 'India' },
-  // Middle East
-  { code: 'TLV', name: 'Tel Aviv', city: 'Tel Aviv', country: 'Israel' },
-  { code: 'CAI', name: 'Cairo', city: 'Cairo', country: 'Egypt' },
-  { code: 'RUH', name: 'Riyadh', city: 'Riyadh', country: 'Saudi Arabia' },
-  { code: 'JED', name: 'Jeddah', city: 'Jeddah', country: 'Saudi Arabia' },
-  { code: 'KWI', name: 'Kuwait City', city: 'Kuwait City', country: 'Kuwait' },
-  { code: 'BAH', name: 'Bahrain', city: 'Bahrain', country: 'Bahrain' },
-  { code: 'MCT', name: 'Muscat', city: 'Muscat', country: 'Oman' },
-  { code: 'AMM', name: 'Amman', city: 'Amman', country: 'Jordan' },
-  { code: 'BEY', name: 'Beirut', city: 'Beirut', country: 'Lebanon' },
-  // Africa
-  { code: 'JNB', name: 'Johannesburg', city: 'Johannesburg', country: 'South Africa' },
-  { code: 'CPT', name: 'Cape Town', city: 'Cape Town', country: 'South Africa' },
-  { code: 'LOS', name: 'Lagos', city: 'Lagos', country: 'Nigeria' },
-  { code: 'ADD', name: 'Addis Ababa', city: 'Addis Ababa', country: 'Ethiopia' },
-  { code: 'NBO', name: 'Nairobi', city: 'Nairobi', country: 'Kenya' },
-  { code: 'CMN', name: 'Casablanca', city: 'Casablanca', country: 'Morocco' },
-  { code: 'TUN', name: 'Tunis', city: 'Tunis', country: 'Tunisia' },
-  { code: 'ALG', name: 'Algiers', city: 'Algiers', country: 'Algeria' },
-  // Americas
-  { code: 'YYZ', name: 'Toronto', city: 'Toronto', country: 'Canada' },
-  { code: 'YVR', name: 'Vancouver', city: 'Vancouver', country: 'Canada' },
-  { code: 'YUL', name: 'Montreal', city: 'Montreal', country: 'Canada' },
-  { code: 'YYC', name: 'Calgary', city: 'Calgary', country: 'Canada' },
-  { code: 'GRU', name: 'São Paulo', city: 'São Paulo', country: 'Brazil' },
-  { code: 'GIG', name: 'Rio de Janeiro', city: 'Rio de Janeiro', country: 'Brazil' },
-  { code: 'EZE', name: 'Buenos Aires', city: 'Buenos Aires', country: 'Argentina' },
-  { code: 'SCL', name: 'Santiago', city: 'Santiago', country: 'Chile' },
-  { code: 'LIM', name: 'Lima', city: 'Lima', country: 'Peru' },
-  { code: 'BOG', name: 'Bogotá', city: 'Bogotá', country: 'Colombia' },
-  { code: 'MEX', name: 'Mexico City', city: 'Mexico City', country: 'Mexico' },
-  { code: 'CUN', name: 'Cancún', city: 'Cancún', country: 'Mexico' },
 ];
 
-// City groupings for metro search
 const CITY_GROUPS: Record<string, string[]> = {
   'LON': ['LHR', 'LGW', 'STN', 'LTN', 'LCY', 'SEN'],
   'NYC': ['JFK', 'LGA', 'EWR'],
@@ -170,13 +98,10 @@ export default function Home() {
 
   const getAirportCode = (input: string): string => {
     const upper = input.toUpperCase().trim();
-    // Direct match
     const direct = AIRPORTS.find(a => a.code === upper);
     if (direct) return direct.code;
-    // City match
     const byCity = AIRPORTS.find(a => a.city.toUpperCase() === upper);
     if (byCity) return byCity.code;
-    // Name match
     const byName = AIRPORTS.find(a => a.name.toUpperCase().includes(upper));
     if (byName) return byName.code;
     return upper;
@@ -202,14 +127,11 @@ export default function Home() {
       const originCode = getAirportCode(origin);
       const destCode = getAirportCode(destination);
       
-      const originAirports = getAirportsForSearch(originCode);
-      const destAirports = getAirportsForSearch(destCode);
-
-      setLoadingMessage(`Searching ${originAirports.join('/')} → ${destAirports.join('/')}...`);
+      setLoadingMessage(`Searching ${originCode} → ${destCode}...`);
 
       const params = new URLSearchParams({
-        origin: originAirports[0],
-        destination: destAirports[0],
+        origin: originCode,
+        destination: destCode,
         departureDate,
         travelClass,
         adults: adults.toString(),
@@ -241,17 +163,27 @@ export default function Home() {
     }
   };
 
+  const getClassLabel = (c: string) => {
+    const labels: Record<string, string> = {
+      'ECONOMY': 'Economy',
+      'PREMIUM_ECONOMY': 'Premium Economy',
+      'BUSINESS': 'Business',
+      'FIRST': 'First Class',
+    };
+    return labels[c] || c;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <header className="bg-white border-b shadow-sm">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      <header className="bg-white/80 backdrop-blur-md border-b sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
               <Plane className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">FlightPath</h1>
-              <p className="text-xs text-gray-500">Find the cheapest flights</p>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-purple-700 to-indigo-700 bg-clip-text text-transparent">FlightPath</h1>
+              <p className="text-xs text-gray-500">Find the cheapest flights with smart split tickets</p>
             </div>
           </div>
         </div>
@@ -259,70 +191,71 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Search Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
+        <div className="bg-white rounded-2xl shadow-2xl shadow-purple-100 p-6 mb-8 border border-purple-50">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
             <div className="lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">From</label>
               <div className="relative">
-                <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <MapPin className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
                 <input 
                   type="text" 
                   value={origin} 
                   onChange={e => setOrigin(e.target.value)} 
-                  placeholder="LHR, London, Heathrow..." 
-                  className="w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" 
+                  placeholder="LHR, London..." 
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
                 />
               </div>
             </div>
 
             <div className="lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">To</label>
               <div className="relative">
-                <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <MapPin className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
                 <input 
                   type="text" 
                   value={destination} 
                   onChange={e => setDestination(e.target.value)} 
                   placeholder="JFK, New York..." 
-                  className="w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" 
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Departure</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Departure</label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <Calendar className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
                 <input 
                   type="date" 
                   value={departureDate} 
                   onChange={e => setDepartureDate(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-2.5 border rounded-lg" 
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500" 
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Return (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Return</label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <Calendar className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
                 <input 
                   type="date" 
                   value={returnDate} 
                   onChange={e => setReturnDate(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-2.5 border rounded-lg" 
+                  placeholder="Optional"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500" 
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Passengers</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Passengers</label>
               <div className="relative">
-                <Users className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <Users className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
                 <select 
                   value={adults} 
                   onChange={e => setAdults(Number(e.target.value))} 
-                  className="w-full pl-10 pr-4 py-2.5 border rounded-lg"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none bg-white"
                 >
                   {[1,2,3,4,5,6,7,8,9].map(n => (
                     <option key={n} value={n}>{n} passenger{n > 1 ? 's' : ''}</option>
@@ -332,16 +265,16 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Class</label>
               <select 
                 value={travelClass} 
                 onChange={e => setTravelClass(e.target.value)} 
-                className="w-full px-4 py-2.5 border rounded-lg"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none bg-white"
               >
                 <option value="ECONOMY">Economy</option>
                 <option value="PREMIUM_ECONOMY">Premium Economy</option>
                 <option value="BUSINESS">Business</option>
-                <option value="FIRST">First</option>
+                <option value="FIRST">First Class</option>
               </select>
             </div>
           </div>
@@ -349,7 +282,7 @@ export default function Home() {
           <button 
             onClick={searchFlights} 
             disabled={loading}
-            className="w-full md:w-auto px-8 py-3 bg-purple-600 text-white font-semibold rounded-lg flex items-center justify-center gap-2 hover:bg-purple-700 disabled:opacity-50 shadow-lg shadow-purple-200"
+            className="w-full md:w-auto px-10 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-xl flex items-center justify-center gap-3 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 shadow-lg shadow-purple-200 transition-all transform hover:scale-[1.02]"
           >
             {loading ? (
               <>
@@ -364,56 +297,74 @@ export default function Home() {
 
         {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
             {error}
           </div>
         )}
 
-        {/* Results */}
+        {/* Results Header */}
+        {(flights.length > 0 || splitTickets.length > 0) && (
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {flights.length} flight{flights.length !== 1 ? 's' : ''} 
+              {splitTickets.length > 0 && <> & {splitTickets.length} split ticket option{splitTickets.length !== 1 ? 's' : ''}</>}
+            </h2>
+            <p className="text-gray-600">
+              {searchMeta?.route} · {getClassLabel(searchMeta?.class || 'ECONOMY')} · {searchMeta?.adults || 1} passenger{(searchMeta?.adults || 1) > 1 ? 's' : ''}
+            </p>
+          </div>
+        )}
+
+        {/* Regular Flights */}
         {flights.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4">
-              Flights ({flights.length} found)
-              {searchMeta?.sources?.length > 0 && (
-                <span className="text-sm font-normal text-gray-500 ml-2">
-                  from {searchMeta.sources.join(', ')}
-                </span>
-              )}
-            </h2>
             <div className="space-y-3">
-              {flights.map(flight => (
-                <div key={flight.id} className="bg-white p-4 rounded-xl border shadow-sm flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Plane className="w-6 h-6 text-blue-600" />
+              {flights.map((flight, idx) => (
+                <div 
+                  key={flight.id} 
+                  className={`bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition-shadow ${idx === 0 ? 'border-purple-300 ring-1 ring-purple-100' : 'border-gray-200'}`}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-xl flex items-center justify-center">
+                        <Plane className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-lg">{flight.airline}</p>
+                        <p className="text-sm text-gray-600">{flight.flightNumber} · {flight.stops === 0 ? 'Direct' : `${flight.stops} stop`}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold">{flight.airline} {flight.flightNumber}</p>
-                      <p className="text-sm text-gray-600">
-                        {flight.stops === 0 ? 'Non-stop' : `${flight.stops} stop${flight.stops > 1 ? 's' : ''}`} 
-                        {flight.duration && ` · ${flight.duration}`}
-                      </p>
-                      <p className="text-xs text-gray-400">Source: {flight.source}</p>
+                    
+                    <div className="flex items-center gap-8">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold">{flight.departure.time}</p>
+                        <p className="text-sm text-gray-600">{flight.from}</p>
+                      </div>
+                      
+                      <div className="flex flex-col items-center text-gray-400">
+                        <p className="text-xs">{flight.duration}</p>
+                        <div className="w-20 h-0.5 bg-gray-300 my-1 relative">
+                          <div className="absolute -right-1 -top-1 w-2 h-2 bg-gray-300 rounded-full" />
+                        </div>
+                      </div>
+                      
+                      <div className="text-center">
+                        <p className="text-2xl font-bold">{flight.arrival.time}</p>
+                        <p className="text-sm text-gray-600">{flight.to} {flight.arrival.date === 'next day' && <span className="text-xs text-orange-500">+1</span>}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold">{flight.departure.time || '--:--'}</p>
-                    <p className="text-sm text-gray-600">{flight.from}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold">{flight.arrival.time || '--:--'}</p>
-                    <p className="text-sm text-gray-600">{flight.to}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-blue-600">£{flight.price}</p>
-                    <a 
-                      href={flight.bookingLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      Book →
-                    </a>
+                    
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-purple-600">£{flight.price.toLocaleString()}</p>
+                      <a 
+                        href={flight.bookingLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-purple-600 hover:text-purple-800 mt-1"
+                      >
+                        View on Google Flights <ArrowRight className="w-4 h-4" />
+                      </a>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -424,45 +375,91 @@ export default function Home() {
         {/* Split Tickets */}
         {splitTickets.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4">Split Ticket Options ({splitTickets.length})</h2>
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              <h2 className="text-xl font-bold">Split Ticket Savings</h2>
+            </div>
+            
             <div className="space-y-4">
               {splitTickets.map(ticket => (
-                <div key={ticket.id} className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-xl border border-green-200">
-                  <div className="flex justify-between items-start mb-3">
+                <div key={ticket.id} className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-5 rounded-2xl border border-amber-200">
+                  <div className="flex justify-between items-start mb-4">
                     <div>
-                      <p className="font-semibold">Via {ticket.hub}</p>
-                      <p className="text-sm text-gray-600">Book separate tickets and save!</p>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-amber-100 text-amber-800 text-sm font-medium px-3 py-1 rounded-full">Save £{ticket.savings.toLocaleString()}</span>
+                        <span className="text-sm text-gray-600">Via {ticket.hub} · {ticket.totalDuration} total</span>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">Book separately with {ticket.hubName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-green-600">£{ticket.totalPrice}</p>
-                      <p className="text-sm text-green-700">Save £{ticket.savings}</p>
+                      <p className="text-3xl font-bold text-amber-700">£{ticket.totalPrice.toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  
+                  <div className="space-y-3">
                     {ticket.tickets.map((t, i) => (
-                      <div key={i} className="bg-white p-3 rounded-lg border-l-4 border-blue-500">
+                      <div key={i} className="bg-white p-3 rounded-xl border-l-4 border-amber-400">
                         <div className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium">{t.from} → {t.to}</p>
-                            <p className="text-sm text-gray-600">{t.airline} {t.flightNumber}</p>
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-700 font-bold text-sm">
+                              {i + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium">{t.from} → {t.to}</p>
+                              <p className="text-sm text-gray-600">{t.airline} {t.flightNumber}</p>
+                            </div>
                           </div>
-                          <p className="font-bold">£{t.price}</p>
+                          <div className="flex items-center gap-4">
+                            {t.layover && (
+                              <div className="flex items-center gap-1 text-sm text-amber-600">
+                                <Clock className="w-4 h-4" />
+                                Layover: {t.layover}
+                              </div>
+                            )}
+                            <p className="font-bold text-lg">£{t.price.toLocaleString()}</p>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
+                  
+                  <a 
+                    href={ticket.bookingLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-amber-700 hover:text-amber-900"
+                  >
+                    Check prices on Google Flights <ArrowRight className="w-4 h-4" />
+                  </a>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* No results */}
+        {/* Empty state */}
         {!loading && !error && flights.length === 0 && splitTickets.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            <Plane className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-lg">Enter your trip details and click Search</p>
-            <p className="text-sm mt-2">Try: London (LHR) → New York (JFK)</p>
+          <div className="text-center py-16">
+            <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Plane className="w-12 h-12 text-purple-400" />
+            </div>
+            <p className="text-xl font-medium text-gray-700 mb-2">Ready to find your flight?</p>
+            <p className="text-gray-500">Enter your trip details above and click Deep Search</p>
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              {['LHR → JFK', 'LON → NYC', 'CDG → SIN', 'DXB → LHR'].map(route => (
+                <button
+                  key={route}
+                  onClick={() => {
+                    const [from, to] = route.split(' → ');
+                    setOrigin(from);
+                    setDestination(to);
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-700 rounded-full text-sm transition-colors"
+                >
+                  {route}
+                </button>
+              ))}
+            </div>          
           </div>
         )}
       </main>
