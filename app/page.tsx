@@ -17,6 +17,7 @@ interface Flight {
   price: number;
   currency: string;
   source: string;
+  bookingLink: string;
 }
 
 interface SplitTicket {
