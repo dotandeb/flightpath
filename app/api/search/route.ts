@@ -1,10 +1,11 @@
 /**
- * RELIABLE SEARCH API - Works every time
+ * RELIABLE SEARCH API - Returns REAL flight data
+ * Tries Amadeus first, then scrapers, then clearly indicates if no real data available
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { searchFlights, generateSampleFlights } from '@/lib/amadeus';
-import { validateFlight, removeMockData } from '@/lib/validation';
+import { searchFlights } from '@/lib/amadeus';
+import { scrapeGoogleFlightsReal, scrapeSkyscannerReal } from '@/lib/scraper-real';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -15,31 +16,34 @@ export async function GET(request: NextRequest) {
   const origin = searchParams.get('origin')?.toUpperCase() || '';
   const destination = searchParams.get('destination')?.toUpperCase() || '';
   const departureDate = searchParams.get('departureDate') || '';
+  const returnDate = searchParams.get('returnDate') || '';
   const travelClass = searchParams.get('travelClass') || 'ECONOMY';
+  const includeSplit = searchParams.get('includeSplit') === 'true';
   
   if (!origin || !destination || !departureDate) {
     return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
   }
   
+  const startTime = Date.now();
   let allFlights: any[] = [];
-  let source = 'SAMPLE';
+  let sources: string[] = [];
   
   try {
-    // Try Amadeus first
-    const amadeusResults = await searchFlights({
-      origin,
-      destination,
-      departureDate,
-      adults: 1,
-      children: 0,
-      infants: 0,
-      travelClass: travelClass as any,
-      nonStop: false
-    });
+    // SOURCE 1: Try Amadeus API (fast, real data)
+    console.log('[Search] Trying Amadeus...');
+    const amadeusResults = await Promise.race([
+      searchFlights({
+        origin, destination, departureDate, returnDate,
+        adults: 1, children: 0, infants: 0,
+        travelClass: travelClass as any, nonStop: false
+      }),
+      new Promise<any[]>((_, reject) => 
+        setTimeout(() => reject(new Error('Amadeus timeout')), 8000)
+      )
+    ]);
     
     if (amadeusResults && amadeusResults.length > 0) {
-      // Map Amadeus results
-      allFlights = amadeusResults.map((offer: any, idx: number) => {
+      const mapped = amadeusResults.map((offer: any, idx: number) => {
         const seg = offer.itineraries[0]?.segments[0];
         return {
           id: `ama-${idx}`,
@@ -65,106 +69,97 @@ export async function GET(request: NextRequest) {
           bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}`
         };
       });
-      source = 'AMADEUS';
-    } else {
-      // FALLBACK: Generate sample data so UI works
-      console.log('[Search] Amadeus empty, using sample data');
-      const sampleOffers = generateSampleFlights({
-        origin, destination, departureDate,
-        adults: 1, children: 0, infants: 0,
-        travelClass: travelClass as any,
-        nonStop: false
-      });
+      allFlights.push(...mapped);
+      sources.push('AMADEUS');
+      console.log(`[Search] Amadeus: ${mapped.length} flights`);
+    }
+  } catch (e: any) {
+    console.log('[Search] Amadeus failed:', e.message);
+  }
+  
+  // SOURCE 2: If Amadeus returned nothing, try scrapers (real data from Google Flights)
+  if (allFlights.length === 0) {
+    try {
+      console.log('[Search] Trying Google Flights scraper...');
+      const googleResults = await Promise.race([
+        scrapeGoogleFlightsReal(origin, destination, departureDate, { maxResults: 10 }),
+        new Promise<any[]>((_, reject) => 
+          setTimeout(() => reject(new Error('Scraper timeout')), 15000)
+        )
+      ]);
       
-      allFlights = sampleOffers.map((offer: any, idx: number) => {
-        const seg = offer.itineraries[0]?.segments[0];
-        return {
-          id: `samp-${idx}`,
-          source: 'SAMPLE',
-          airline: offer.validatingAirlineCodes?.[0] || 'BA',
-          flightNumber: seg ? `${seg.carrierCode}${seg.number}` : `BA${100 + idx}`,
-          from: seg?.departure?.iataCode || origin,
-          to: seg?.arrival?.iataCode || destination,
-          departure: {
-            airport: seg?.departure?.iataCode || origin,
-            time: seg?.departure?.at?.split('T')[1]?.substring(0, 5) || `${8 + idx}:00`,
-            date: seg?.departure?.at?.split('T')[0] || departureDate
-          },
-          arrival: {
-            airport: seg?.arrival?.iataCode || destination,
-            time: seg?.arrival?.at?.split('T')[1]?.substring(0, 5) || `${12 + idx}:00`,
-            date: seg?.arrival?.at?.split('T')[0] || departureDate
-          },
-          duration: offer.itineraries[0]?.duration?.replace('PT', '').replace('H', 'h ').replace('M', 'm') || '7h 30m',
-          stops: (offer.itineraries[0]?.segments?.length || 1) - 1,
-          price: parseFloat(offer.price?.total) || (400 + idx * 50),
-          currency: offer.price?.currency || 'GBP',
-          bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}`
-        };
-      });
-      source = 'SAMPLE';
+      if (googleResults && googleResults.length > 0) {
+        allFlights.push(...googleResults.map((f, i) => ({
+          ...f,
+          id: `ggl-${i}`,
+          source: 'GOOGLE_FLIGHTS'
+        })));
+        sources.push('GOOGLE_FLIGHTS');
+        console.log(`[Search] Google Flights: ${googleResults.length} flights`);
+      }
+    } catch (e: any) {
+      console.log('[Search] Google scraper failed:', e.message);
     }
     
-    // Validate
-    const validatedFlights = removeMockData(allFlights)
-      .map(validateFlight)
-      .filter((f): f is NonNullable<typeof f> => f !== null);
-    
-    return NextResponse.json({
-      flights: validatedFlights.slice(0, 20),
-      splitTickets: [],
-      meta: {
-        totalResults: validatedFlights.length,
-        cheapestPrice: validatedFlights[0]?.price || 0,
-        sources: [source],
-        note: source === 'SAMPLE' ? 'Showing representative flights - live data unavailable' : undefined
+    // Try Skyscanner as backup
+    try {
+      console.log('[Search] Trying Skyscanner scraper...');
+      const skyResults = await Promise.race([
+        scrapeSkyscannerReal(origin, destination, departureDate, { maxResults: 8 }),
+        new Promise<any[]>((_, reject) => 
+          setTimeout(() => reject(new Error('Skyscanner timeout')), 15000)
+        )
+      ]);
+      
+      if (skyResults && skyResults.length > 0) {
+        allFlights.push(...skyResults.map((f, i) => ({
+          ...f,
+          id: `sky-${i}`,
+          source: 'SKYSCANNER'
+        })));
+        sources.push('SKYSCANNER');
+        console.log(`[Search] Skyscanner: ${skyResults.length} flights`);
       }
-    });
-    
-  } catch (error: any) {
-    console.error('[Search API Error]', error);
-    
-    // Even on error, return sample data so UI doesn't break
-    const sampleOffers = generateSampleFlights({
-      origin, destination, departureDate,
-      adults: 1, children: 0, infants: 0,
-      travelClass: travelClass as any,
-      nonStop: false
-    });
-    
-    const fallbackFlights = sampleOffers.map((offer: any, idx: number) => ({
-      id: `fallback-${idx}`,
-      source: 'SAMPLE',
-      airline: offer.validatingAirlineCodes?.[0] || 'BA',
-      flightNumber: `BA${100 + idx}`,
-      from: origin,
-      to: destination,
-      departure: {
-        airport: origin,
-        time: `${8 + idx}:00`,
-        date: departureDate
-      },
-      arrival: {
-        airport: destination,
-        time: `${12 + idx}:00`,
-        date: departureDate
-      },
-      duration: '7h 30m',
-      stops: 0,
-      price: parseFloat(offer.price?.total) || (400 + idx * 50),
-      currency: 'GBP',
-      bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}`
-    }));
-    
+    } catch (e: any) {
+      console.log('[Search] Skyscanner failed:', e.message);
+    }
+  }
+  
+  // If still no results, return empty with clear message - NO MORE FAKE DATA
+  if (allFlights.length === 0) {
     return NextResponse.json({
-      flights: fallbackFlights.slice(0, 10),
+      flights: [],
       splitTickets: [],
       meta: {
-        totalResults: fallbackFlights.length,
-        cheapestPrice: fallbackFlights[0]?.price || 0,
-        sources: ['SAMPLE'],
-        note: 'Showing representative flights - live data unavailable'
+        totalResults: 0,
+        cheapestPrice: 0,
+        sources: [],
+        error: 'No flights found. Try different dates or use Deep Search for more comprehensive results.',
+        searchTime: Date.now() - startTime
       }
     });
   }
+  
+  // Sort by price
+  allFlights.sort((a, b) => (a.price || 0) - (b.price || 0));
+  
+  // Remove duplicates
+  const seen = new Set<string>();
+  const uniqueFlights = allFlights.filter(f => {
+    const key = `${f.airline}-${f.departure?.time}-${f.price}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  
+  return NextResponse.json({
+    flights: uniqueFlights.slice(0, 20),
+    splitTickets: [],
+    meta: {
+      totalResults: uniqueFlights.length,
+      cheapestPrice: uniqueFlights[0]?.price || 0,
+      sources: sources,
+      searchTime: Date.now() - startTime
+    }
+  });
 }

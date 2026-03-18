@@ -1,6 +1,12 @@
 {
   "version": 2,
   "env": {
-    "NEXT_PUBLIC_APP_URL": "https://flightpath.solutions"
+    "NEXT_PUBLIC_APP_URL": "https://flightpath.solutions",
+    "CHROME_EXECUTABLE_PATH": "/tmp/chromium"
+  },
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 60
+    }
   }
 }

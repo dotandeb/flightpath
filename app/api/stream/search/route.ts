@@ -214,9 +214,11 @@ function deduplicateAndSort(flights: any[]): any[] {
   return unique.sort((a, b) => (a.price || 0) - (b.price || 0));
 }
 
-// Stub implementations - will be imported from actual modules
+// Import implementations
+import { searchFlights } from '@/lib/amadeus';
+import { scrapeGoogleFlightsReal, scrapeSkyscannerReal } from '@/lib/scraper-real';
+
 async function searchAmadeus(origin: string, dest: string, dep: string, ret?: string, cls?: string): Promise<any[]> {
-  const { searchFlights } = await import('@/lib/amadeus');
   const results = await searchFlights({
     origin, destination: dest, departureDate: dep,
     returnDate: ret, adults: 1, children: 0, infants: 0,
@@ -252,12 +254,10 @@ async function searchAmadeus(origin: string, dest: string, dep: string, ret?: st
 }
 
 async function scrapeGoogleFlights(origin: string, dest: string, date: string): Promise<any[]> {
-  const { scrapeGoogleFlightsReal } = await import('@/lib/scraper-real');
   return scrapeGoogleFlightsReal(origin, dest, date, { maxResults: 8 });
 }
 
 async function scrapeSkyscanner(origin: string, dest: string, date: string): Promise<any[]> {
-  const { scrapeSkyscannerReal } = await import('@/lib/scraper-real');
   return scrapeSkyscannerReal(origin, dest, date, { maxResults: 5 });
 }
 
