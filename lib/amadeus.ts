@@ -69,6 +69,8 @@ export async function searchFlights(params: SearchParams): Promise<FlightOffer[]
     return [];
   } catch (error: any) {
     console.error('[Amadeus] Search error:', error?.response?.data || error.message);
+    // Log full error for debugging
+    console.error('[Amadeus] Full error:', JSON.stringify(error, null, 2));
     return [];
   }
 }
