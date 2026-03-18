@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plane, Search, Calendar, MapPin, Users } from 'lucide-react';
+import { Plane, Search, Calendar, MapPin, Users, Sparkles } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 
 interface Flight {
@@ -349,7 +349,7 @@ export default function Home() {
           <button 
             onClick={searchFlights} 
             disabled={loading}
-            className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50"
+            className="w-full md:w-auto px-8 py-3 bg-purple-600 text-white font-semibold rounded-lg flex items-center justify-center gap-2 hover:bg-purple-700 disabled:opacity-50 shadow-lg shadow-purple-200"
           >
             {loading ? (
               <>
@@ -357,7 +357,7 @@ export default function Home() {
                 {loadingMessage}
               </>
             ) : (
-              <><Search className="w-5 h-5" /> Search Flights</>
+              <><Sparkles className="w-5 h-5" /> Deep Search</>
             )}
           </button>
         </div>

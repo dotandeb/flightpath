@@ -105,19 +105,42 @@ function calculateDuration(from: string, to: string): { hours: number; mins: num
   return { hours: 2 + Math.floor(Math.random() * 3), mins: Math.floor(Math.random() * 60) };
 }
 
-function generateFlightsForRoute(origin: string, destination: string, date: string): Flight[] {
+function generateFlightsForRoute(
+  origin: string, 
+  destination: string, 
+  date: string, 
+  travelClass: string = 'ECONOMY',
+  adults: number = 1
+): Flight[] {
   const routeKey = `${origin}-${destination}`;
   const airlines = AIRLINE_ROUTES[routeKey] || ['BA', 'AA', 'DL', 'UA', 'AF', 'LH'];
   
   const flights: Flight[] = [];
+  
+  // Base price varies by route
   const basePrice = 250 + Math.random() * 400;
+  
+  // Class multiplier
+  const classMultipliers: Record<string, number> = {
+    'ECONOMY': 1,
+    'PREMIUM_ECONOMY': 1.8,
+    'BUSINESS': 3.5,
+    'FIRST': 8,
+  };
+  const multiplier = classMultipliers[travelClass] || 1;
+  
+  // Format date for Skyscanner: YYYY-MM-DD -> YYMMDD
+  const dateParts = date.split('-');
+  const skyscannerDate = dateParts[0].slice(2) + dateParts[1] + dateParts[2];
   
   for (let i = 0; i < Math.min(6, airlines.length); i++) {
     const airline = airlines[i];
     const flightNum = generateFlightNumber(airline);
     const departureTime = generateTime(date, i);
     const duration = calculateDuration(origin, destination);
-    const price = Math.floor(basePrice + Math.random() * 200 + i * 50);
+    
+    // Price with class multiplier and random variation
+    const price = Math.floor((basePrice + Math.random() * 200 + i * 50) * multiplier * adults);
     
     // Calculate arrival
     const [depHour, depMin] = departureTime.split(':').map(Number);
@@ -129,6 +152,13 @@ function generateFlightsForRoute(origin: string, destination: string, date: stri
     }
     const arrivalTime = `${(arrHour % 24).toString().padStart(2, '0')}:${arrMin.toString().padStart(2, '0')}`;
     const nextDay = arrHour >= 24;
+    
+    // Skyscanner booking link with real parameters
+    const cabinClass = travelClass === 'PREMIUM_ECONOMY' ? 'premiumeconomy' : 
+                       travelClass === 'ECONOMY' ? 'economy' :
+                       travelClass.toLowerCase();
+    
+    const bookingLink = `https://www.skyscanner.net/transport/flights/${origin.toLowerCase()}/${destination.toLowerCase()}/?adults=${adults}&adultsv2=${adults}&cabinclass=${cabinClass}&children=0&childrenv2=&inboundaltsen=ut&outboundaltsen=ut&preferdirects=false&outboundaltsen=ut&oym=${skyscannerDate}`;
     
     flights.push({
       id: `${airline}-${Date.now()}-${i}`,
@@ -151,7 +181,7 @@ function generateFlightsForRoute(origin: string, destination: string, date: stri
       price,
       currency: 'GBP',
       source: 'FLIGHTPATH_GDS',
-      bookingLink: `https://www.google.com/travel/flights?q=${origin}%20to%20${destination}%20${date}`
+      bookingLink
     });
   }
   
@@ -221,8 +251,8 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
   
   try {
-    // Generate flights for this route
-    const flights = generateFlightsForRoute(origin, destination, departureDate);
+    // Generate flights for this route with class and adults
+    const flights = generateFlightsForRoute(origin, destination, departureDate, travelClass, adults);
     
     // Generate split tickets if we have direct flights
     const splitTickets = flights.length > 0 
