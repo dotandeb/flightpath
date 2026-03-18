@@ -58,7 +58,6 @@ const AIRLINE_NAMES: Record<string, string> = {
   'TG': 'Thai Airways',
   'QF': 'Qantas',
   'QR': 'Qatar Airways',
-  'VS': 'Virgin Atlantic',
   'IB': 'Iberia',
   'AZ': 'ITA Airways',
   'JL': 'Japan Airlines',
