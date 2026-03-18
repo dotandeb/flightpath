@@ -19,7 +19,7 @@ export function getAmadeusClient(): Amadeus | null {
       amadeusClient = new Amadeus({
         clientId: apiKey,
         clientSecret: apiSecret,
-        hostname: 'test.api.amadeus.com'
+        hostname: 'api.amadeus.com'  // Production API
       });
       console.log('[Amadeus] Client initialized successfully');
     } catch (error) {
