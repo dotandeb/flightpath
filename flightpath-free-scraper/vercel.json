@@ -1,27 +1,4 @@
 {
   "version": 2,
-  "name": "flightpath-free-scraper",
-  "builds": [
-    {
-      "src": "api/**/*.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/health",
-      "dest": "/api/health.ts"
-    },
-    {
-      "src": "/api/search",
-      "dest": "/api/search.ts"
-    },
-    {
-      "src": "/api/cached/(.*)",
-      "dest": "/api/cached/[route].ts"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  "name": "flightpath-free-scraper"
 }
