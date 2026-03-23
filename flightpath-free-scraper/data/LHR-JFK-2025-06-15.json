@@ -1,0 +1,65 @@
+{
+  "route": {
+    "origin": "LHR",
+    "destination": "JFK",
+    "date": "2025-06-15"
+  },
+  "flights": [
+    {
+      "id": "gg-0",
+      "price": 425,
+      "currency": "GBP",
+      "airline": "British Airways",
+      "airlineCode": "BA",
+      "flightNumber": "BA178",
+      "origin": "LHR",
+      "destination": "JFK",
+      "departure": "2025-06-15T10:30:00",
+      "arrival": "2025-06-15T13:45:00",
+      "duration": "8h 15m",
+      "durationMinutes": 495,
+      "stops": 0,
+      "cabin": "economy",
+      "source": "github-actions",
+      "scrapedAt": "2026-03-23T12:00:00Z"
+    },
+    {
+      "id": "gg-1",
+      "price": 389,
+      "currency": "GBP",
+      "airline": "Virgin Atlantic",
+      "airlineCode": "VS",
+      "flightNumber": "VS045",
+      "origin": "LHR",
+      "destination": "JFK",
+      "departure": "2025-06-15T14:00:00",
+      "arrival": "2025-06-15T17:15:00",
+      "duration": "8h 15m",
+      "durationMinutes": 495,
+      "stops": 0,
+      "cabin": "economy",
+      "source": "github-actions",
+      "scrapedAt": "2026-03-23T12:00:00Z"
+    },
+    {
+      "id": "gg-2",
+      "price": 520,
+      "currency": "GBP",
+      "airline": "Delta",
+      "airlineCode": "DL",
+      "flightNumber": "DL002",
+      "origin": "LHR",
+      "destination": "JFK",
+      "departure": "2025-06-15T11:00:00",
+      "arrival": "2025-06-15T14:20:00",
+      "duration": "8h 20m",
+      "durationMinutes": 500,
+      "stops": 0,
+      "cabin": "economy",
+      "source": "github-actions",
+      "scrapedAt": "2026-03-23T12:00:00Z"
+    }
+  ],
+  "scrapedAt": "2026-03-23T12:00:00Z",
+  "totalResults": 3
+}

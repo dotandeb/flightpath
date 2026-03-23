@@ -1,0 +1,25 @@
+{
+  "name": "flightpath-free-scraper",
+  "version": "1.0.0",
+  "description": "Zero-cost flight scraper using free APIs and GitHub Actions",
+  "type": "module",
+  "scripts": {
+    "dev": "node src/test-server.ts",
+    "deploy": "vercel --prod",
+    "test": "node src/test-server.ts",
+    "scrape": "node src/scrapers/manual-scrape.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.28.0",
+    "playwright": "^1.42.0"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vercel": "^33.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,144 @@
+name: Scheduled Flight Scraper
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      origin:
+        description: 'Origin airport (e.g., LHR)'
+        default: 'LHR'
+        required: true
+      destination:
+        description: 'Destination airport (e.g., JFK)'
+        default: 'JFK'
+        required: true
+      date:
+        description: 'Departure date (YYYY-MM-DD)'
+        default: '2025-06-15'
+        required: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  scrape-popular-routes:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        route:
+          # Popular routes to scrape on schedule
+          - { origin: 'LHR', destination: 'JFK', date: '2025-06-15' }
+          - { origin: 'LHR', destination: 'JFK', date: '2025-06-16' }
+          - { origin: 'JFK', destination: 'LHR', date: '2025-06-15' }
+          - { origin: 'LAX', destination: 'LHR', date: '2025-06-15' }
+          - { origin: 'LHR', destination: 'DXB', date: '2025-06-15' }
+          - { origin: 'LHR', destination: 'CDG', date: '2025-06-15' }
+          - { origin: 'CDG', destination: 'JFK', date: '2025-06-15' }
+          - { origin: 'DXB', destination: 'LHR', date: '2025-06-15' }
+          - { origin: 'SIN', destination: 'LHR', date: '2025-06-15' }
+          - { origin: 'LHR', destination: 'SIN', date: '2025-06-15' }
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install chromium
+
+      - name: Run scraper
+        run: |
+          mkdir -p data
+          npx tsx src/scrapers/github-actions-scraper.ts \
+            "${{ matrix.route.origin }}" \
+            "${{ matrix.route.destination }}" \
+            "${{ matrix.route.date }}"
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: flights-${{ matrix.route.origin }}-${{ matrix.route.destination }}-${{ matrix.route.date }}
+          path: data/*.json
+          retention-days: 30
+
+  scrape-manual:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install chromium
+
+      - name: Run scraper
+        run: |
+          mkdir -p data
+          npx tsx src/scrapers/github-actions-scraper.ts \
+            "${{ github.event.inputs.origin }}" \
+            "${{ github.event.inputs.destination }}" \
+            "${{ github.event.inputs.date }}"
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: flights-manual
+          path: data/*.json
+
+  update-data-branch:
+    runs-on: ubuntu-latest
+    needs: [scrape-popular-routes]
+    if: always()
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: data-downloads
+          pattern: flights-*
+
+      - name: Merge and commit data
+        run: |
+          mkdir -p data
+          
+          # Merge all JSON files
+          for dir in data-downloads/*/; do
+            if [ -d "$dir" ]; then
+              for file in "$dir"*.json; do
+                if [ -f "$file" ]; then
+                  cp "$file" "data/$(basename $file)"
+                fi
+              done
+            fi
+          done
+          
+          # Commit to data branch
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          git checkout -b data || git checkout data
+          
+          # Add and commit
+          git add data/
+          git commit -m "Update flight data - $(date -u +%Y-%m-%d_%H-%M-%S)" || echo "No changes"
+          git push origin data --force || echo "Push failed"

@@ -1,0 +1,116 @@
+name: Test and Deploy Free Scraper
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Run tests every 6 hours to check API health
+    - cron: '0 */6 * * *'
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Start test server
+        run: |
+          npx tsx src/test-server.ts &
+          sleep 3
+
+      - name: Test health endpoint
+        run: |
+          curl -s http://localhost:3002/api/health | jq '.'
+
+      - name: Test search endpoint (with no APIs)
+        run: |
+          curl -s -X POST http://localhost:3002/api/search \
+            -H "Content-Type: application/json" \
+            -d '{"origin":"LHR","destination":"JFK","departureDate":"2025-06-15"}' | jq '.'
+
+      - name: Test with Kiwi API (if available)
+        if: env.KIWI_API_KEY != ''
+        env:
+          KIWI_API_KEY: ${{ secrets.KIWI_API_KEY }}
+        run: |
+          echo "Testing with Kiwi API..."
+          curl -s -X POST http://localhost:3002/api/search \
+            -H "Content-Type: application/json" \
+            -d '{"origin":"LHR","destination":"JFK","departureDate":"2025-06-15"}' | jq '.'
+
+  # Scheduled job to refresh cache with real data
+  refresh-cache:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 */6 * * *'
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Refresh popular routes cache
+        env:
+          KIWI_API_KEY: ${{ secrets.KIWI_API_KEY }}
+          AMADEUS_KEY: ${{ secrets.AMADEUS_KEY }}
+          AMADEUS_SECRET: ${{ secrets.AMADEUS_SECRET }}
+          AVIATION_STACK_KEY: ${{ secrets.AVIATION_STACK_KEY }}
+        run: |
+          echo "Refreshing cache for popular routes..."
+          # Add cache refresh logic here
+          node -e "
+            import('./src/apis/orchestrator.js').then(({ orchestrator }) => {
+              const routes = [
+                { origin: 'LHR', destination: 'JFK', date: '2025-06-15' },
+                { origin: 'LAX', destination: 'LHR', date: '2025-06-15' },
+                { origin: 'JFK', destination: 'CDG', date: '2025-06-15' },
+              ];
+              
+              Promise.all(routes.map(r => 
+                orchestrator.search(r).catch(e => console.error('Failed:', e.message))
+              )).then(() => console.log('Cache refresh complete'));
+            });
+          "
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel
+        uses: vercel/action-deploy@v1
+        if: env.VERCEL_TOKEN != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./
