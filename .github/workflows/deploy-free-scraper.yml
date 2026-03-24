@@ -27,9 +27,7 @@ jobs:
         working-directory: ./flightpath-free-scraper
         run: npm ci
 
-      # Option 1: Deploy using existing Vercel project (if you add VERCEL_PROJECT_ID_FREE_SCRAPER secret)
-      - name: Deploy to Vercel (Using Project ID)
-        if: ${{ secrets.VERCEL_PROJECT_ID_FREE_SCRAPER != '' }}
+      - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -37,20 +35,3 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_FREE_SCRAPER }}
           vercel-args: '--prod'
           working-directory: ./flightpath-free-scraper
-
-      # Option 2: Manual deploy link (if no project ID set)
-      - name: Deploy Instructions
-        if: ${{ secrets.VERCEL_PROJECT_ID_FREE_SCRAPER == '' }}
-        run: |
-          echo "⚠️  To auto-deploy, you need to either:"
-          echo ""
-          echo "Option A - Add GitHub Secret:"
-          echo "1. Create new Vercel project at https://vercel.com/new"
-          echo "2. Import your GitHub repo"
-          echo "3. Set root directory to: flightpath-free-scraper"
-          echo "4. In Vercel dashboard, go to Settings → General → Copy Project ID"
-          echo "5. In GitHub repo, go to Settings → Secrets → New repository secret"
-          echo "6. Name: VERCEL_PROJECT_ID_FREE_SCRAPER, Value: [paste project ID]"
-          echo ""
-          echo "Option B - Manual deploy now:"
-          echo "Run locally: cd flightpath-free-scraper && vercel --prod"
