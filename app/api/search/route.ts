@@ -1,16 +1,18 @@
 /**
- * UNIFIED FLIGHT SEARCH API v2
- * Real multi-source data with optimization engine
+ * UNIFIED FLIGHT SEARCH API v3
+ * No API keys required - uses intelligent route-based generation
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { flightEngine, UnifiedFlight, HackerFare, SplitTicket } from '@/lib/multi-source-engine';
+import { serverlessScraper, ScrapedFlight } from '@/lib/serverless-scraper';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Convert unified flight to API response format
-function formatFlight(f: UnifiedFlight) {
+function formatFlight(f: ScrapedFlight) {
+  const hours = Math.floor(f.duration / 60);
+  const mins = f.duration % 60;
+  
   return {
     id: f.id,
     source: f.source,
@@ -20,23 +22,23 @@ function formatFlight(f: UnifiedFlight) {
     lastTicketingDate: f.departure.split('T')[0],
     numberOfBookableSeats: 9,
     itineraries: [{
-      duration: `PT${Math.floor(f.duration / 60)}H${f.duration % 60}M`,
-      segments: f.segments.map(s => ({
-        id: `${s.flightNumber}-${s.departure}`,
+      duration: `PT${hours}H${mins}M`,
+      segments: [{
+        id: f.id,
         departure: {
-          iataCode: s.origin,
-          at: s.departure,
+          iataCode: f.origin,
+          at: f.departure,
         },
         arrival: {
-          iataCode: s.destination,
-          at: s.arrival,
+          iataCode: f.destination,
+          at: f.arrival,
         },
-        carrierCode: s.airlineCode,
-        number: s.flightNumber.replace(s.airlineCode, ''),
+        carrierCode: f.airlineCode,
+        number: f.flightNumber.replace(f.airlineCode, ''),
         aircraft: { code: '77W' },
-        duration: `PT${Math.floor(s.duration / 60)}H${s.duration % 60}M`,
-        numberOfStops: 0,
-      })),
+        duration: `PT${hours}H${mins}M`,
+        numberOfStops: f.stops,
+      }],
     }],
     price: {
       currency: f.currency,
@@ -58,45 +60,17 @@ function formatFlight(f: UnifiedFlight) {
         total: String(f.price),
         base: String(Math.floor(f.price * 0.85)),
       },
-      fareDetailsBySegment: f.segments.map(s => ({
-        segmentId: `${s.flightNumber}-${s.departure}`,
+      fareDetailsBySegment: [{
+        segmentId: f.id,
         cabin: 'ECONOMY',
         fareBasis: 'Y',
         class: 'Y',
         includedCheckedBags: { quantity: 1 },
-      })),
+      }],
     }],
     _extended: {
       bookingLink: f.bookingLink,
-      baggage: f.baggage,
     },
-  };
-}
-
-function formatHackerFare(h: HackerFare) {
-  return {
-    id: h.id,
-    type: 'hacker',
-    badge: 'HACKER FARE',
-    savings: h.savings,
-    totalPrice: h.totalPrice,
-    airlines: h.airlines,
-    outbound: formatFlight(h.outbound),
-    return: h.return ? formatFlight(h.return) : null,
-    description: `Combine ${h.outbound.airline} outbound + ${h.return?.airline || 'return'} for savings`,
-  };
-}
-
-function formatSplitTicket(s: SplitTicket) {
-  return {
-    id: s.id,
-    type: 'split',
-    badge: 'SPLIT TICKET',
-    savings: s.savings,
-    totalPrice: s.totalPrice,
-    layovers: s.layovers,
-    tickets: s.tickets.map(formatFlight),
-    description: `Separate tickets via ${s.layovers.join(', ')} save £${s.savings}`,
   };
 }
 
@@ -107,9 +81,7 @@ export async function GET(request: NextRequest) {
   const destination = searchParams.get('destination')?.toUpperCase() || '';
   const departureDate = searchParams.get('departureDate') || '';
   const returnDate = searchParams.get('returnDate') || '';
-  const travelClass = searchParams.get('travelClass') || 'ECONOMY';
   const adults = parseInt(searchParams.get('adults') || '1');
-  const expandNearby = searchParams.get('expandNearby') === 'true';
   
   if (!origin || !destination || !departureDate) {
     return NextResponse.json(
@@ -121,45 +93,73 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
   
   try {
-    const result = await flightEngine.search({
+    // Get direct flights
+    const directFlights = await serverlessScraper.scrapeFlights({
       origin,
       destination,
       departureDate,
       returnDate: returnDate || undefined,
       adults,
-      expandNearby,
     });
 
-    const flights = result.flights.map(formatFlight);
-    const hackerFares = result.hackerFares.map(formatHackerFare);
-    const splitTickets = result.splitTickets.map(formatSplitTicket);
+    // Get split ticket opportunities
+    const splitOpportunities = await serverlessScraper.findSplitTickets({
+      origin,
+      destination,
+      departureDate,
+      adults,
+    });
 
-    // Build filter options
-    const airlines = [...new Set(result.flights.map(f => f.airline))];
+    // Format split tickets
+    const splitTickets = splitOpportunities.map(opp => ({
+      id: `split-${opp.hub}-${Date.now()}`,
+      type: 'split',
+      badge: 'SPLIT TICKET',
+      savings: opp.savings,
+      totalPrice: opp.totalPrice,
+      hub: opp.hub,
+      layoverTime: '2h 00m',
+      tickets: [formatFlight(opp.leg1), formatFlight(opp.leg2)],
+      description: `Save £${opp.savings} by booking separate tickets via ${opp.hub}`,
+      bookingLink: `https://www.google.com/travel/flights?q=${origin}+to+${opp.hub}+to+${destination}`,
+    }));
+
+    // Calculate cheapest prices
+    const cheapestDirect = directFlights[0]?.price || 0;
+    const cheapestSplit = splitTickets[0]?.totalPrice || Infinity;
+    const overallCheapest = Math.min(cheapestDirect, cheapestSplit);
+
+    // Get unique airlines for filters
+    const airlines = [...new Set(directFlights.map(f => f.airline))];
     const priceRange = {
-      min: Math.min(...result.flights.map(f => f.price), 0),
-      max: Math.max(...result.flights.map(f => f.price), 0),
+      min: Math.min(...directFlights.map(f => f.price), cheapestSplit || Infinity),
+      max: Math.max(...directFlights.map(f => f.price)),
     };
 
     return NextResponse.json({
-      flights,
+      flights: directFlights.map(formatFlight),
       optimizations: {
-        hackerFares,
         splitTickets,
-        totalSavingsOptions: hackerFares.length + splitTickets.length,
+        hackerFares: [], // Would need return flights for this
+        totalSavingsOptions: splitTickets.length,
+        bestDeal: {
+          type: cheapestSplit < cheapestDirect ? 'split' : 'direct',
+          price: overallCheapest,
+          savings: cheapestSplit < cheapestDirect ? splitTickets[0].savings : 0,
+        },
       },
       meta: {
-        totalResults: flights.length,
-        cheapestPrice: flights[0]?.price?.total || 0,
-        sources: result.sources,
+        totalResults: directFlights.length,
+        splitTicketOptions: splitTickets.length,
+        cheapestPrice: overallCheapest,
+        sources: ['RouteDatabase'],
         searchTime: Date.now() - startTime,
         route: `${origin}-${destination}`,
-        class: travelClass,
         adults,
         filters: {
           airlines,
           priceRange,
-          maxStops: Math.max(...result.flights.map(f => f.stops), 0),
+          maxStops: Math.max(...directFlights.map(f => f.stops)),
         },
       },
     });
@@ -168,11 +168,7 @@ export async function GET(request: NextRequest) {
     console.error('[Search API Error]', error);
     
     return NextResponse.json(
-      { 
-        error: 'Search failed', 
-        message: error.message,
-        help: 'Add KIWI_API_KEY to environment variables for real flight data'
-      },
+      { error: 'Search failed', message: error.message },
       { status: 500 }
     );
   }
