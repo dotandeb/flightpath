@@ -81,6 +81,44 @@ const CITY_GROUPS: Record<string, string[]> = {
   'TYO': ['NRT', 'HND'],
 };
 
+// Helper functions
+const getAirlineName = (code: string): string => {
+  const airlines: Record<string, string> = {
+    'BA': 'British Airways', 'VS': 'Virgin Atlantic', 'AA': 'American Airlines',
+    'DL': 'Delta', 'UA': 'United', 'AF': 'Air France', 'KL': 'KLM',
+    'LH': 'Lufthansa', 'EK': 'Emirates', 'SQ': 'Singapore Airlines',
+    'CX': 'Cathay Pacific', 'TG': 'Thai Airways', 'QF': 'Qantas',
+    'QR': 'Qatar Airways', 'IB': 'Iberia', 'AZ': 'ITA Airways',
+    'JL': 'JAL', 'NH': 'ANA', 'NZ': 'Air New Zealand', 'EV': 'Evelop',
+    'U2': 'easyJet', 'AC': 'Air Canada', 'AY': 'Finnair', 'OS': 'Austrian',
+    'SK': 'SAS', 'DY': 'Norwegian', 'EI': 'Aer Lingus', 'TP': 'TAP',
+    'OK': 'Czech', 'LO': 'LOT', 'W6': 'Wizz Air', 'FR': 'Ryanair',
+    'VY': 'Vueling', 'UX': 'Air Europa', 'LX': 'Swiss', 'A3': 'Aegean',
+    'MS': 'EgyptAir', 'SA': 'South African', 'ET': 'Ethiopian', 'LY': 'El Al',
+    'KU': 'Kuwait', 'EY': 'Etihad', 'KE': 'Korean Air', 'OZ': 'Asiana',
+    'MU': 'China Eastern', 'CZ': 'China Southern', 'CA': 'Air China',
+    'AI': 'Air India', 'MH': 'Malaysia', 'GA': 'Garuda', 'PR': 'Philippine',
+    'UL': 'SriLankan', 'HX': 'Hong Kong Airlines', 'TR': 'Scoot',
+    'LA': 'LATAM', 'AM': 'Aeromexico', 'AR': 'Aerolineas Argentinas',
+    'B6': 'JetBlue', 'AS': 'Alaska', 'WS': 'WestJet', 'TS': 'Air Transat',
+  };
+  return airlines[code] || code;
+};
+
+const getAirportName = (code: string): string => {
+  const airport = AIRPORTS.find(a => a.code === code);
+  return airport?.name || code;
+};
+
+const formatDuration = (duration: string): string => {
+  // Parse PT11H47M format
+  const match = duration.match(/PT(\d+)H(\d+)M/);
+  if (match) {
+    return `${match[1]}h ${match[2]}m`;
+  }
+  return duration;
+};
+
 export default function Home() {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -148,9 +186,66 @@ export default function Home() {
 
       const data = await res.json();
       
+      // Parse Amadeus-format flights into simplified format
+      const parsedFlights: Flight[] = (data.flights || []).map((f: any) => {
+        const segment = f.itineraries?.[0]?.segments?.[0];
+        if (!segment) return null;
+        
+        const depTime = new Date(segment.departure.at);
+        const arrTime = new Date(segment.arrival.at);
+        const isNextDay = arrTime.getDate() !== depTime.getDate();
+        
+        return {
+          id: f.id,
+          airline: f.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.class === 'Y' ? 
+            getAirlineName(segment.carrierCode) : segment.carrierCode,
+          flightNumber: `${segment.carrierCode}${segment.number}`,
+          from: segment.departure.iataCode,
+          to: segment.arrival.iataCode,
+          departure: {
+            airport: segment.departure.iataCode,
+            time: format(depTime, 'HH:mm'),
+            date: format(depTime, 'yyyy-MM-dd'),
+          },
+          arrival: {
+            airport: segment.arrival.iataCode,
+            time: format(arrTime, 'HH:mm'),
+            date: isNextDay ? 'next day' : format(arrTime, 'yyyy-MM-dd'),
+          },
+          duration: formatDuration(f.itineraries[0].duration),
+          stops: segment.numberOfStops || 0,
+          price: parseInt(f.price?.total) || 0,
+          currency: f.price?.currency || 'GBP',
+          source: f.source,
+          bookingLink: f._extended?.bookingLink || `https://www.google.com/travel/flights?q=${segment.departure.iataCode}+to+${segment.arrival.iataCode}`,
+        };
+      }).filter(Boolean);
+      
+      // Parse split tickets
+      const parsedSplitTickets: SplitTicket[] = (data.optimizations?.splitTickets || []).map((st: any) => ({
+        id: st.id,
+        hub: st.hub,
+        hubName: getAirportName(st.hub),
+        tickets: st.tickets.map((t: any, i: number) => {
+          const seg = t.itineraries?.[0]?.segments?.[0];
+          return {
+            from: seg?.departure?.iataCode || '',
+            to: seg?.arrival?.iataCode || '',
+            airline: getAirlineName(seg?.carrierCode || ''),
+            flightNumber: `${seg?.carrierCode || ''}${seg?.number || ''}`,
+            price: parseInt(t.price?.total) || 0,
+            layover: i === 0 ? st.layoverTime : null,
+          };
+        }),
+        totalPrice: st.totalPrice,
+        savings: st.savings,
+        totalDuration: st.layoverTime || '',
+        bookingLink: st.bookingLink,
+      }));
+      
       setSearchMeta(data.meta);
-      setFlights(data.flights || []);
-      setSplitTickets(data.splitTickets || []);
+      setFlights(parsedFlights);
+      setSplitTickets(parsedSplitTickets);
       
       if ((data.flights || []).length === 0 && (data.splitTickets || []).length === 0) {
         setError(data.meta?.error || 'No flights found. Try different dates or airports.');
