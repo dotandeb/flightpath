@@ -668,7 +668,7 @@ export default function Home() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-sm font-medium text-purple-600 hover:text-purple-800 mt-1"
                       >
-                        View on Google Flights <ArrowRight className="w-4 h-4" />
+                        Book on {flight.airline} <ArrowRight className="w-4 h-4" />
                       </a>
                     </div>
                   </div>
