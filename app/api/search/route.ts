@@ -104,8 +104,8 @@ export async function GET(request: NextRequest) {
   const errors: string[] = [];
   let allFlights: ScraperFlight[] = [];
   
-  // Generate real Google Flights booking link
-  const googleFlightsLink = `https://www.google.com/travel/flights?q=Flights%20to%20${destination}%20from%20${origin}%20on%20${departureDate}`;
+  // Generate real Google Flights booking link - proper format
+  const googleFlightsLink = `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}%20on%20${departureDate}`;
   
   try {
     // Strategy 1: Amadeus API (real data)

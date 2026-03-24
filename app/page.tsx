@@ -447,7 +447,7 @@ export default function Home() {
           price: parseInt(f.price?.total) || 0,
           currency: f.price?.currency || 'GBP',
           source: f.source,
-          bookingLink: f._extended?.bookingLink || `https://www.google.com/travel/flights?q=${segment.departure.iataCode}+to+${segment.arrival.iataCode}`,
+          bookingLink: f._extended?.bookingLink || `https://www.google.com/travel/flights?q=Flights%20from%20${segment.departure.iataCode}%20to%20${segment.arrival.iataCode}%20on%20${format(depTime, 'yyyy-MM-dd')}`,
         };
       }).filter(Boolean);
       
