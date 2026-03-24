@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchFlights, generateSampleFlights } from '@/lib/amadeus';
 import { searchScraper, convertScraperFlights, isScraperAvailable } from '@/lib/scraper-client';
+import { searchFree, convertFreeFlights, isFreeScraperAvailable } from '@/lib/free-scraper/orchestrator';
 import { SearchParams, FlightOffer } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -322,15 +323,31 @@ export async function GET(request: NextRequest) {
         })
       : Promise.resolve([]);
     
-    // 3. Internal generator (always works as fallback)
+    // 3. FREE scraper search (GitHub Actions data)
+    const freeScraperPromise = isFreeScraperAvailable()
+      ? searchFree({
+          origin,
+          destination,
+          departureDate,
+          returnDate: returnDate || undefined,
+          adults,
+          cabin: travelClass.toLowerCase() as any,
+        }).catch(err => {
+          errors.push(`FreeScraper: ${err.message}`);
+          return { flights: [], sources: [], errors: [], cached: false, searchTime: 0, totalResults: 0 };
+        })
+      : Promise.resolve({ flights: [], sources: [], errors: [], cached: false, searchTime: 0, totalResults: 0 });
+    
+    // 4. Internal generator (always works as fallback)
     const internalPromise = Promise.resolve(generateInternalFlights(
       origin, destination, departureDate, travelClass, adults
     ));
     
     // Wait for all searches
-    const [amadeusResults, scraperResults, internalResults] = await Promise.allSettled([
+    const [amadeusResults, scraperResults, freeScraperResults, internalResults] = await Promise.allSettled([
       amadeusPromise,
       scraperPromise,
+      freeScraperPromise,
       internalPromise
     ]);
     
@@ -348,6 +365,13 @@ export async function GET(request: NextRequest) {
       const converted = convertScraperFlights(scraperResults.value);
       allFlights.push(...converted);
       sources.push('Scraper');
+    }
+    
+    // Add FREE scraper results
+    if (freeScraperResults.status === 'fulfilled' && freeScraperResults.value.totalResults > 0) {
+      const converted = convertFreeFlights(freeScraperResults.value.flights);
+      allFlights.push(...converted);
+      sources.push('FreeScraper');
     }
     
     // Always add internal results as baseline
@@ -402,6 +426,7 @@ export async function GET(request: NextRequest) {
         class: travelClass,
         adults,
         scraperAvailable: isScraperAvailable(),
+        freeScraperAvailable: isFreeScraperAvailable(),
         errors: errors.length > 0 ? errors : undefined
       }
     });
@@ -425,6 +450,7 @@ export async function GET(request: NextRequest) {
         class: travelClass,
         adults,
         scraperAvailable: isScraperAvailable(),
+        freeScraperAvailable: isFreeScraperAvailable(),
         error: error.message
       }
     });
