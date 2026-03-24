@@ -36,8 +36,8 @@ export interface AmadeusFlight {
   bookingClass?: string;
 }
 
-const AMADEUS_KEY = process.env.AMADEUS_KEY || process.env.AMADEUS_API_KEY || '';
-const AMADEUS_SECRET = process.env.AMADEUS_SECRET || process.env.AMADEUS_API_SECRET || '';
+const AMADEUS_KEY = process.env.AMADEUS_API_KEY || process.env.AMADEUS_KEY || 'brQ8OmTJIFY7RmDCuWwRNQc6cJWw2c2e';
+const AMADEUS_SECRET = process.env.AMADEUS_API_SECRET || process.env.AMADEUS_SECRET || 'ABas2BuGP00d5chH';
 
 // Use test API by default, production if specified
 const BASE_URL = process.env.AMADEUS_PRODUCTION === 'true' 
