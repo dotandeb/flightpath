@@ -455,21 +455,18 @@ export default function Home() {
       const parsedSplitTickets: SplitTicket[] = (data.optimizations?.splitTickets || []).map((st: any) => ({
         id: st.id,
         hub: st.hub,
-        hubName: getAirportName(st.hub),
-        tickets: st.tickets.map((t: any, i: number) => {
-          const seg = t.itineraries?.[0]?.segments?.[0];
-          return {
-            from: seg?.departure?.iataCode || '',
-            to: seg?.arrival?.iataCode || '',
-            airline: getAirlineName(seg?.carrierCode || ''),
-            flightNumber: `${seg?.carrierCode || ''}${seg?.number || ''}`,
-            price: parseInt(t.price?.total) || 0,
-            layover: i === 0 ? st.layoverTime : null,
-          };
-        }),
+        hubName: st.hubName || getAirportName(st.hub),
+        tickets: st.tickets.map((t: any, i: number) => ({
+          from: t.from,
+          to: t.to,
+          airline: t.airline,
+          flightNumber: t.flightNumber,
+          price: t.price,
+          layover: t.layover,
+        })),
         totalPrice: st.totalPrice,
         savings: st.savings,
-        totalDuration: st.layoverTime || '',
+        totalDuration: st.totalDuration,
         bookingLink: st.bookingLink,
       }));
       
