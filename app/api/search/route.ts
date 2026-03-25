@@ -1,10 +1,10 @@
 /**
- * REAL FLIGHT SEARCH API v4.1
- * Primary: Amadeus API (real data)
- * Fallback: Route database with airline booking links
+ * REAL FLIGHT SEARCH API v5.0
+ * Priority: 1) Scraped cache, 2) Amadeus API, 3) Route database
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { flightCache } from '@/lib/flight-cache';
 import { amadeus, AmadeusSearchParams } from '@/lib/amadeus-api';
 import { AIRLINE_ROUTES, AIRLINES, getAirlineForRoute, getAirlinesByRoute } from '@/lib/routes';
 
@@ -328,9 +328,49 @@ function getRandomFlightNumber(): string {
   return `${airline}${number}`;
 }
 
+// Helper functions for cache
+function getAirlineCode(airlineName: string): string {
+  const codeMap: Record<string, string> = {
+    'British Airways': 'BA',
+    'Virgin Atlantic': 'VS',
+    'American Airlines': 'AA',
+    'Delta': 'DL',
+    'United Airlines': 'UA',
+    'Air France': 'AF',
+    'KLM': 'KL',
+    'Lufthansa': 'LH',
+    'Emirates': 'EK',
+    'Singapore Airlines': 'SQ',
+    'Cathay Pacific': 'CX',
+    'Qatar Airways': 'QR',
+    'Turkish Airlines': 'TK',
+    'Iberia': 'IB',
+    'Finnair': 'AY',
+    'SAS': 'SK',
+    'TAP Portugal': 'TP',
+    'Swiss': 'LX',
+    'Austrian Airlines': 'OS',
+    'ITA Airways': 'AZ',
+    'Japan Airlines': 'JL',
+    'ANA': 'NH',
+    'Qantas': 'QF',
+    'Air Canada': 'AC',
+    'easyJet': 'U2',
+    'Ryanair': 'FR',
+  };
+  return codeMap[airlineName] || 'XX';
+}
+
+function parseDuration(durationStr: string): number {
+  if (!durationStr) return 240;
+  const hours = parseInt(durationStr.match(/(\d+)h/)?.[1] || '0');
+  const mins = parseInt(durationStr.match(/(\d+)m/)?.[1] || '0');
+  return hours * 60 + mins;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  
+
   const origin = searchParams.get('origin')?.toUpperCase() || '';
   const destination = searchParams.get('destination')?.toUpperCase() || '';
   const departureDate = searchParams.get('departureDate') || '';
@@ -339,94 +379,128 @@ export async function GET(request: NextRequest) {
   const children = parseInt(searchParams.get('children') || '0');
   const infants = parseInt(searchParams.get('infants') || '0');
   const travelClass = searchParams.get('travelClass') || 'ECONOMY';
-  
+
   if (!origin || !destination || !departureDate) {
     return NextResponse.json(
       { error: 'Missing required parameters: origin, destination, departureDate' },
       { status: 400 }
     );
   }
-  
+
   const startTime = Date.now();
   const sources: string[] = [];
   const errors: string[] = [];
   let allFlights: ScraperFlight[] = [];
-  
+
   try {
-    // Strategy 1: Try Amadeus API
-    console.log('[Search] Attempting Amadeus API...');
-    try {
-      const amadeusParams: AmadeusSearchParams = {
-        originLocationCode: origin,
-        destinationLocationCode: destination,
-        departureDate,
-        returnDate: returnDate || undefined,
-        adults,
-        children: children > 0 ? children : undefined,
-        infants: infants > 0 ? infants : undefined,
-        travelClass: travelClass as any,
-        currencyCode: 'GBP',
-        max: 20,
-      };
-      
-      const amadeusFlights = await amadeus.search(amadeusParams);
-      
-      if (amadeusFlights.length > 0) {
-        const converted: ScraperFlight[] = amadeusFlights.map(f => ({
-          id: f.id,
-          price: f.price,
-          currency: f.currency,
-          airline: f.airline,
-          airlineCode: f.airlineCode,
-          flightNumber: f.flightNumber,
-          origin: f.origin,
-          destination: f.destination,
-          departure: f.departure,
-          arrival: f.arrival,
-          duration: f.duration,
-          durationMinutes: f.durationMinutes,
-          stops: f.stops,
-          cabin: f.cabin,
-          source: 'amadeus',
-          bookingLink: getAirlineBookingLink(f.airlineCode, origin, destination, departureDate),
-          scrapedAt: new Date().toISOString(),
-        }));
-        
-        allFlights.push(...converted);
-        sources.push('amadeus');
-        console.log(`[Search] Got ${converted.length} flights from Amadeus`);
-      }
-    } catch (amadeusError: any) {
-      console.error('[Search] Amadeus failed:', amadeusError);
-      errors.push(`Amadeus: ${amadeusError.message}`);
+    // Strategy 1: Check scraped cache first (real data!)
+    console.log('[Search] Checking scraped cache...');
+    const cachedFlights = flightCache.getFlights(origin, destination, departureDate);
+
+    if (cachedFlights.length > 0) {
+      const converted: ScraperFlight[] = cachedFlights.map((f, i) => ({
+        id: f.id || `cache-${i}`,
+        price: f.price,
+        currency: f.currency || 'GBP',
+        airline: f.airline,
+        airlineCode: getAirlineCode(f.airline),
+        flightNumber: `${getAirlineCode(f.airline)}${100 + i}`,
+        origin,
+        destination,
+        departure: `${departureDate}T${f.departureTime || '10:00'}:00`,
+        arrival: `${departureDate}T${f.arrivalTime || '14:00'}:00`,
+        duration: f.duration || '4h',
+        durationMinutes: parseDuration(f.duration),
+        stops: f.stops || 0,
+        cabin: travelClass,
+        source: 'scraped-cache',
+        bookingLink: getAirlineBookingLink(getAirlineCode(f.airline), origin, destination, departureDate),
+        scrapedAt: new Date().toISOString(),
+      }));
+
+      allFlights.push(...converted);
+      sources.push('scraped-cache');
+      console.log(`[Search] Got ${converted.length} flights from cache`);
     }
-    
-    // Strategy 2: Route database fallback (guaranteed results)
+
+    // Strategy 2: Try Amadeus API (if no cache or cache is stale)
+    if (allFlights.length === 0) {
+      console.log('[Search] No cache, attempting Amadeus API...');
+      try {
+        const amadeusParams: AmadeusSearchParams = {
+          originLocationCode: origin,
+          destinationLocationCode: destination,
+          departureDate,
+          returnDate: returnDate || undefined,
+          adults,
+          children: children > 0 ? children : undefined,
+          infants: infants > 0 ? infants : undefined,
+          travelClass: travelClass as any,
+          currencyCode: 'GBP',
+          max: 20,
+        };
+
+        const amadeusFlights = await amadeus.search(amadeusParams);
+
+        if (amadeusFlights.length > 0) {
+          const converted: ScraperFlight[] = amadeusFlights.map(f => ({
+            id: f.id,
+            price: f.price,
+            currency: f.currency,
+            airline: f.airline,
+            airlineCode: f.airlineCode,
+            flightNumber: f.flightNumber,
+            origin: f.origin,
+            destination: f.destination,
+            departure: f.departure,
+            arrival: f.arrival,
+            duration: f.duration,
+            durationMinutes: f.durationMinutes,
+            stops: f.stops,
+            cabin: f.cabin,
+            source: 'amadeus',
+            bookingLink: getAirlineBookingLink(f.airlineCode, origin, destination, departureDate),
+            scrapedAt: new Date().toISOString(),
+          }));
+
+          allFlights.push(...converted);
+          sources.push('amadeus');
+          console.log(`[Search] Got ${converted.length} flights from Amadeus`);
+        }
+      } catch (amadeusError: any) {
+        console.error('[Search] Amadeus failed:', amadeusError);
+        errors.push(`Amadeus: ${amadeusError.message}`);
+      }
+    }
+
+    // Strategy 3: Route database fallback (guaranteed results)
     if (allFlights.length < 3) {
       console.log('[Search] Using route database fallback...');
       const routeFlights = generateRouteBasedFlights(
-        origin, 
-        destination, 
-        departureDate, 
-        returnDate || null, 
+        origin,
+        destination,
+        departureDate,
+        returnDate || null,
         adults
       );
-      
-      // Only add if different from Amadeus results
+
+      // Only add if different from existing results
       const existingIds = new Set(allFlights.map(f => f.flightNumber));
       const newFlights = routeFlights.filter(f => !existingIds.has(f.flightNumber));
-      
+
       allFlights.push(...newFlights);
-      sources.push('route-database');
+      if (!sources.includes('route-database')) {
+        sources.push('route-database');
+      }
       console.log(`[Search] Added ${newFlights.length} flights from route database`);
     }
-    
+
     // Sort by price
     allFlights.sort((a, b) => a.price - b.price);
-    
+
     // Generate split ticket options
     const splitTickets = generateSplitTickets(origin, destination, departureDate, allFlights);
-    
+
     const searchTime = Date.now() - startTime;
     const airlines = [...new Set(allFlights.map(f => f.airline))];
     

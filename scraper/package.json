@@ -1,0 +1,14 @@
+{
+  "name": "flightpath-scraper",
+  "version": "1.0.0",
+  "description": "Flight scraper for FlightPath",
+  "main": "src/index.js",
+  "scripts": {
+    "scrape": "node src/index.js",
+    "scrape:route": "node src/scrape-route.js"
+  },
+  "dependencies": {
+    "playwright": "^1.42.0",
+    "puppeteer": "^22.0.0"
+  }
+}
