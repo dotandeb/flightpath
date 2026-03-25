@@ -221,7 +221,7 @@ function AirportAutocomplete({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
       <div className="relative">
         <MapPin className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
         <input 
@@ -230,28 +230,28 @@ function AirportAutocomplete({
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
+          className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all placeholder:text-slate-500" 
         />
       </div>
       
       {isOpen && filtered.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-80 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl shadow-black/50 max-h-80 overflow-y-auto">
           {Object.entries(grouped).map(([city, airports]) => (
             <div key={city}>
-              <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <div className="px-4 py-2 bg-slate-900 text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 {city}, {airports[0].country}
               </div>
               {airports.map(airport => (
                 <button
                   key={airport.code}
                   onClick={() => handleSelect(airport)}
-                  className="w-full px-4 py-3 text-left hover:bg-purple-50 transition-colors flex items-center justify-between"
+                  className="w-full px-4 py-3 text-left hover:bg-purple-500/20 transition-colors flex items-center justify-between"
                 >
                   <div>
-                    <span className="font-medium text-gray-900">{airport.name}</span>
-                    <span className="text-gray-500 text-sm ml-2">{airport.code}</span>
+                    <span className="font-medium text-slate-100">{airport.name}</span>
+                    <span className="text-slate-400 text-sm ml-2">{airport.code}</span>
                   </div>
-                  <span className="text-xs text-gray-400">{airport.region}</span>
+                  <span className="text-xs text-slate-500">{airport.region}</span>
                 </button>
               ))}
             </div>
@@ -294,40 +294,40 @@ function PassengerSelector({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <label className="block text-sm font-medium text-gray-700 mb-1.5">Passengers</label>
+      <label className="block text-sm font-medium text-slate-300 mb-1.5">Passengers</label>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 text-left bg-white flex items-center justify-between"
+        className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 text-left text-slate-100 flex items-center justify-between transition-all"
       >
         <Users className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
         <span>{total} passenger{total !== 1 ? 's' : ''}</span>
-        <ChevronDown className="w-4 h-4 text-gray-400" />
+        <ChevronDown className="w-4 h-4 text-slate-400" />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-4">
+        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl shadow-black/50 p-4">
           {[
             { key: 'adults' as const, label: 'Adults', sub: 'Age 16+' },
             { key: 'children' as const, label: 'Children', sub: 'Age 2-15' },
             { key: 'infants' as const, label: 'Infants', sub: 'Under 2' },
           ].map(({ key, label, sub }) => (
-            <div key={key} className="flex items-center justify-between py-3 border-b last:border-0">
+            <div key={key} className="flex items-center justify-between py-3 border-b border-slate-700 last:border-0">
               <div>
-                <div className="font-medium">{label}</div>
-                <div className="text-xs text-gray-500">{sub}</div>
+                <div className="font-medium text-slate-100">{label}</div>
+                <div className="text-xs text-slate-400">{sub}</div>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => updateCount(key, -1)}
-                  className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-30"
+                  className="w-8 h-8 rounded-full border border-slate-500 flex items-center justify-center text-slate-300 hover:bg-slate-700 disabled:opacity-30"
                   disabled={key === 'adults' ? passengers.adults <= 1 : passengers[key] <= 0}
                 >
                   -
                 </button>
-                <span className="w-6 text-center font-medium">{passengers[key]}</span>
+                <span className="w-6 text-center font-medium text-slate-100">{passengers[key]}</span>
                 <button
                   onClick={() => updateCount(key, 1)}
-                  className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-30"
+                  className="w-8 h-8 rounded-full border border-slate-500 flex items-center justify-center text-slate-300 hover:bg-slate-700 disabled:opacity-30"
                   disabled={total >= 9}
                 >
                   +
@@ -496,16 +496,16 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <header className="bg-white/80 backdrop-blur-md border-b sticky top-0 z-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
               <Plane className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-purple-700 to-indigo-700 bg-clip-text text-transparent">FlightPath</h1>
-              <p className="text-xs text-gray-500">Find the cheapest flights with smart split tickets</p>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">FlightPath</h1>
+              <p className="text-xs text-slate-400">Find the cheapest flights with smart split tickets</p>
             </div>
           </div>
         </div>
@@ -513,7 +513,7 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Search Form */}
-        <div className="bg-white rounded-2xl shadow-2xl shadow-purple-100 p-6 mb-8 border border-purple-50">
+        <div className="bg-slate-800/80 backdrop-blur rounded-2xl shadow-2xl shadow-black/30 p-6 mb-8 border border-slate-700">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
             <div className="lg:col-span-2">
               <AirportAutocomplete
@@ -534,7 +534,7 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Departure</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Departure</label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
                 <input 
@@ -542,13 +542,13 @@ export default function Home() {
                   value={departureDate} 
                   min={format(new Date(), 'yyyy-MM-dd')}
                   onChange={e => setDepartureDate(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500" 
+                  className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all" 
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Return</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Return</label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
                 <input 
@@ -556,7 +556,7 @@ export default function Home() {
                   value={returnDate} 
                   min={departureDate}
                   onChange={e => setReturnDate(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500" 
+                  className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all" 
                 />
               </div>
             </div>
@@ -573,7 +573,7 @@ export default function Home() {
             <button 
               onClick={searchFlights} 
               disabled={loading}
-              className="px-10 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-xl flex items-center justify-center gap-3 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 shadow-lg shadow-purple-200 transition-all transform hover:scale-[1.02]"
+              className="px-10 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-xl flex items-center justify-center gap-3 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 shadow-lg shadow-purple-500/25 transition-all transform hover:scale-[1.02]"
             >
               {loading ? (
                 <>
@@ -586,11 +586,11 @@ export default function Home() {
             </button>
 
             <div className="flex flex-col">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Class</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Class</label>
               <select 
                 value={travelClass} 
                 onChange={e => setTravelClass(e.target.value)} 
-                className="px-6 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none bg-white"
+                className="px-6 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none text-slate-100 transition-all"
               >
                 <option value="ECONOMY">Economy</option>
                 <option value="PREMIUM_ECONOMY">Premium Economy</option>
@@ -603,7 +603,7 @@ export default function Home() {
 
         {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          <div className="mb-6 p-4 bg-red-900/30 border border-red-700 rounded-xl text-red-300">
             {error}
           </div>
         )}
@@ -611,11 +611,11 @@ export default function Home() {
         {/* Results Header */}
         {(flights.length > 0 || splitTickets.length > 0) && (
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-slate-100">
               {flights.length} flight{flights.length !== 1 ? 's' : ''} 
               {splitTickets.length > 0 && <> & {splitTickets.length} split ticket option{splitTickets.length !== 1 ? 's' : ''}</>}
             </h2>
-            <p className="text-gray-600">
+            <p className="text-slate-400">
               {searchMeta?.route} · {getClassLabel(travelClass)} · {passengers.adults + passengers.children + passengers.infants} passenger{passengers.adults + passengers.children + passengers.infants !== 1 ? 's' : ''}
             </p>
           </div>
@@ -628,45 +628,45 @@ export default function Home() {
               {flights.map((flight, idx) => (
                 <div 
                   key={flight.id} 
-                  className={`bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition-shadow ${idx === 0 ? 'border-purple-300 ring-1 ring-purple-100' : 'border-gray-200'}`}
+                  className={`bg-slate-800/80 p-5 rounded-2xl border transition-all hover:border-purple-500/50 ${idx === 0 ? 'border-purple-500/50 ring-1 ring-purple-500/20' : 'border-slate-700'}`}
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-xl flex items-center justify-center">
-                        <Plane className="w-6 h-6 text-purple-600" />
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center">
+                        <Plane className="w-6 h-6 text-purple-400" />
                       </div>
                       <div>
-                        <p className="font-semibold text-lg">{flight.airline}</p>
-                        <p className="text-sm text-gray-600">{flight.flightNumber} · {flight.stops === 0 ? 'Direct' : `${flight.stops} stop`}</p>
+                        <p className="font-semibold text-lg text-slate-100">{flight.airline}</p>
+                        <p className="text-sm text-slate-400">{flight.flightNumber} · {flight.stops === 0 ? 'Direct' : `${flight.stops} stop`}</p>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-8">
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{flight.departure.time}</p>
-                        <p className="text-sm text-gray-600">{flight.from}</p>
+                        <p className="text-2xl font-bold text-slate-100">{flight.departure.time}</p>
+                        <p className="text-sm text-slate-400">{flight.from}</p>
                       </div>
                       
-                      <div className="flex flex-col items-center text-gray-400">
+                      <div className="flex flex-col items-center text-slate-500">
                         <p className="text-xs">{flight.duration}</p>
-                        <div className="w-20 h-0.5 bg-gray-300 my-1 relative">
-                          <div className="absolute -right-1 -top-1 w-2 h-2 bg-gray-300 rounded-full" />
+                        <div className="w-20 h-0.5 bg-slate-600 my-1 relative">
+                          <div className="absolute -right-1 -top-1 w-2 h-2 bg-slate-600 rounded-full" />
                         </div>
                       </div>
                       
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{flight.arrival.time}</p>
-                        <p className="text-sm text-gray-600">{flight.to} {flight.arrival.date === 'next day' && <span className="text-xs text-orange-500">+1</span>}</p>
+                        <p className="text-2xl font-bold text-slate-100">{flight.arrival.time}</p>
+                        <p className="text-sm text-slate-400">{flight.to} {flight.arrival.date === 'next day' && <span className="text-xs text-orange-400">+1</span>}</p>
                       </div>
                     </div>
                     
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-purple-600">£{flight.price.toLocaleString()}</p>
-                      <a 
-                        href={flight.bookingLink} 
-                        target="_blank" 
+                      <p className="text-3xl font-bold text-purple-400">£{flight.price.toLocaleString()}</p>
+                      <a
+                        href={flight.bookingLink}
+                        target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm font-medium text-purple-600 hover:text-purple-800 mt-1"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-purple-400 hover:text-purple-300 mt-1"
                       >
                         Book on {flight.airline} <ArrowRight className="w-4 h-4" />
                       </a>
@@ -682,56 +682,56 @@ export default function Home() {
         {splitTickets.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-              <h2 className="text-xl font-bold">Split Ticket Savings</h2>
+              <Sparkles className="w-5 h-5 text-amber-400" />
+              <h2 className="text-xl font-bold text-slate-100">Split Ticket Savings</h2>
             </div>
-            
+
             <div className="space-y-4">
               {splitTickets.map(ticket => (
-                <div key={ticket.id} className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-5 rounded-2xl border border-amber-200">
+                <div key={ticket.id} className="bg-gradient-to-r from-amber-900/30 via-orange-900/20 to-amber-900/30 p-5 rounded-2xl border border-amber-700/30">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="bg-amber-100 text-amber-800 text-sm font-medium px-3 py-1 rounded-full">Save £{ticket.savings.toLocaleString()}</span>
-                        <span className="text-sm text-gray-600">Via {ticket.hub}</span>
+                        <span className="bg-amber-500/20 text-amber-300 text-sm font-medium px-3 py-1 rounded-full">Save £{ticket.savings.toLocaleString()}</span>
+                        <span className="text-sm text-slate-400">Via {ticket.hub}</span>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">Book separately via {ticket.hubName}</p>
+                      <p className="text-sm text-slate-500 mt-1">Book separately via {ticket.hubName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-amber-700">£{ticket.totalPrice.toLocaleString()}</p>
+                      <p className="text-3xl font-bold text-amber-400">£{ticket.totalPrice.toLocaleString()}</p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-3">
                     {ticket.tickets.map((t, i) => (
-                      <div key={i} className="bg-white p-3 rounded-xl border-l-4 border-amber-400">
+                      <div key={i} className="bg-slate-800/50 p-3 rounded-xl border-l-4 border-amber-500">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-700 font-bold text-sm">
+                            <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center text-amber-300 font-bold text-sm">
                               {i + 1}
                             </div>
                             <div>
-                              <p className="font-medium">{t.from} → {t.to}</p>
-                              <p className="text-sm text-gray-600">{t.airline} {t.flightNumber}</p>
+                              <p className="font-medium text-slate-100">{t.from} → {t.to}</p>
+                              <p className="text-sm text-slate-400">{t.airline} {t.flightNumber}</p>
                             </div>
                           </div>
                           {t.layover && (
-                            <div className="flex items-center gap-1 text-sm text-amber-600">
+                            <div className="flex items-center gap-1 text-sm text-amber-400">
                               <Clock className="w-4 h-4" />
                               Layover: {t.layover}
                             </div>
                           )}
-                          <p className="font-bold text-lg">£{t.price.toLocaleString()}</p>
+                          <p className="font-bold text-lg text-slate-100">£{t.price.toLocaleString()}</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                  
-                  <a 
+
+                  <a
                     href={ticket.bookingLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-amber-700 hover:text-amber-900"
+                    className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-amber-400 hover:text-amber-300"
                   >
                     Check prices on Google Flights <ArrowRight className="w-4 h-4" />
                   </a>
@@ -744,11 +744,11 @@ export default function Home() {
         {/* Empty state */}
         {!loading && !error && flights.length === 0 && splitTickets.length === 0 && (
           <div className="text-center py-16">
-            <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="w-24 h-24 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <Plane className="w-12 h-12 text-purple-400" />
             </div>
-            <p className="text-xl font-medium text-gray-700 mb-2">Ready to find your flight?</p>
-            <p className="text-gray-500">Enter your trip details above and click Search Flights</p>
+            <p className="text-xl font-medium text-slate-300 mb-2">Ready to find your flight?</p>
+            <p className="text-slate-500">Enter your trip details above and click Search Flights</p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
               {['LHR → JFK', 'LON → NYC', 'CDG → SIN', 'DXB → LHR'].map(route => (
                 <button
@@ -758,7 +758,7 @@ export default function Home() {
                     setOrigin(from);
                     setDestination(to);
                   }}
-                  className="px-4 py-2 bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-700 rounded-full text-sm transition-colors"
+                  className="px-4 py-2 bg-slate-800 hover:bg-purple-500/20 text-slate-300 hover:text-purple-300 rounded-full text-sm transition-colors border border-slate-700"
                 >
                   {route}
                 </button>
