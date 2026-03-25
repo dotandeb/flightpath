@@ -220,22 +220,22 @@ function AirportAutocomplete({
   }, {} as Record<string, typeof AIRPORTS>);
 
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className="relative flex flex-col flex-1">
       <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
-      <div className="relative">
-        <MapPin className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
+      <div className="relative flex-1">
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none z-10" />
         <input 
           type="text" 
           value={inputValue || value}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all placeholder:text-slate-500" 
+          className="w-full h-[46px] pl-10 pr-4 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all placeholder:text-slate-500" 
         />
       </div>
       
       {isOpen && filtered.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl shadow-black/50 max-h-80 overflow-y-auto">
+        <div className="absolute top-full z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl shadow-black/50 max-h-80 overflow-y-auto">
           {Object.entries(grouped).map(([city, airports]) => (
             <div key={city}>
               <div className="px-4 py-2 bg-slate-900 text-xs font-semibold text-slate-400 uppercase tracking-wider">
@@ -293,15 +293,15 @@ function PassengerSelector({
   };
 
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className="relative h-full flex flex-col">
       <label className="block text-sm font-medium text-slate-300 mb-1.5">Passengers</label>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 text-left text-slate-100 flex items-center justify-between transition-all"
+        className="w-full h-[46px] pl-10 pr-4 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 text-left text-slate-100 flex items-center transition-all"
       >
-        <Users className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
-        <span>{total} passenger{total !== 1 ? 's' : ''}</span>
-        <ChevronDown className="w-4 h-4 text-slate-400" />
+        <Users className="absolute left-3 top-[2.125rem] w-5 h-5 text-purple-400" />
+        <span className="flex-1">{total} passenger{total !== 1 ? 's' : ''}</span>
+        <ChevronDown className="w-4 h-4 text-slate-400 ml-auto" />
       </button>
 
       {isOpen && (
@@ -514,8 +514,8 @@ export default function Home() {
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Search Form */}
         <div className="bg-slate-800/80 backdrop-blur rounded-2xl shadow-2xl shadow-black/30 p-6 mb-8 border border-slate-700">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-6 items-start">
+            <div className="lg:col-span-2 flex flex-col">
               <AirportAutocomplete
                 label="From"
                 value={origin}
@@ -524,7 +524,7 @@ export default function Home() {
               />
             </div>
 
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 flex flex-col">
               <AirportAutocomplete
                 label="To"
                 value={destination}
@@ -533,35 +533,35 @@ export default function Home() {
               />
             </div>
 
-            <div>
+            <div className="flex flex-col">
               <label className="block text-sm font-medium text-slate-300 mb-1.5">Departure</label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none z-10" />
                 <input 
                   type="date" 
                   value={departureDate} 
                   min={format(new Date(), 'yyyy-MM-dd')}
                   onChange={e => setDepartureDate(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all" 
+                  className="w-full pl-10 pr-2 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
                 />
               </div>
             </div>
 
-            <div>
+            <div className="flex flex-col">
               <label className="block text-sm font-medium text-slate-300 mb-1.5">Return</label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-3 w-5 h-5 text-purple-400" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none z-10" />
                 <input 
                   type="date" 
                   value={returnDate} 
                   min={departureDate}
                   onChange={e => setReturnDate(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all" 
+                  className="w-full pl-10 pr-2 py-3 bg-slate-900 border border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-100 transition-all [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
                 />
               </div>
             </div>
 
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 flex flex-col">
               <PassengerSelector
                 passengers={passengers}
                 onChange={setPassengers}
