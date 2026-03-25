@@ -447,7 +447,7 @@ export default function Home() {
           price: parseInt(f.price?.total) || 0,
           currency: f.price?.currency || 'GBP',
           source: f.source,
-          bookingLink: f._extended?.bookingLink || `https://www.google.com/travel/flights?q=Flights%20from%20${segment.departure.iataCode}%20to%20${segment.arrival.iataCode}%20on%20${format(depTime, 'yyyy-MM-dd')}`,
+          bookingLink: f._extended?.bookingLink || f.bookingLink || '#',
         };
       }).filter(Boolean);
       
@@ -572,7 +572,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-end gap-4">
             <button 
               onClick={searchFlights} 
               disabled={loading}
@@ -588,16 +588,19 @@ export default function Home() {
               )}
             </button>
 
-            <select 
-              value={travelClass} 
-              onChange={e => setTravelClass(e.target.value)} 
-              className="px-6 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none bg-white"
-            >
-              <option value="ECONOMY">Economy</option>
-              <option value="PREMIUM_ECONOMY">Premium Economy</option>
-              <option value="BUSINESS">Business</option>
-              <option value="FIRST">First Class</option>
-            </select>
+            <div className="flex flex-col">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Class</label>
+              <select 
+                value={travelClass} 
+                onChange={e => setTravelClass(e.target.value)} 
+                className="px-6 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 appearance-none bg-white"
+              >
+                <option value="ECONOMY">Economy</option>
+                <option value="PREMIUM_ECONOMY">Premium Economy</option>
+                <option value="BUSINESS">Business</option>
+                <option value="FIRST">First Class</option>
+              </select>
+            </div>
           </div>
         </div>
 
