@@ -1,12 +1,7 @@
 /**
- * Flight Cache API
- * Serves scraped flight data from the data/ directory
+ * Flight Cache API - Client for cached flight data
+ * Fetches from /data/ endpoint (static JSON files)
  */
-
-import fs from 'fs';
-import path from 'path';
-
-const DATA_DIR = path.join(process.cwd(), 'scraper', 'data');
 
 export interface CachedFlight {
   id: string;
@@ -27,125 +22,86 @@ export interface RouteCache {
   scrapedAt: string;
 }
 
-export class FlightCache {
+class FlightCacheClient {
   private cache: Map<string, RouteCache> = new Map();
-  private lastLoad: number = 0;
-  private readonly TTL = 5 * 60 * 1000; // 5 minutes
+  private loading: Map<string, Promise<RouteCache | null>> = new Map();
 
   /**
    * Get flights for a specific route and date
    */
-  getFlights(origin: string, destination: string, date: string): CachedFlight[] {
-    this.ensureLoaded();
-    
+  async getFlights(origin: string, destination: string, date: string): Promise<CachedFlight[]> {
     const key = `${origin}-${destination}_${date}`;
-    const data = this.cache.get(key);
     
-    if (!data) {
-      // Try reverse route
-      const reverseKey = `${destination}-${origin}_${date}`;
-      return this.cache.get(reverseKey)?.flights || [];
+    // Check memory cache
+    if (this.cache.has(key)) {
+      return this.cache.get(key)!.flights;
     }
     
-    return data.flights;
-  }
-
-  /**
-   * Get all available routes
-   */
-  getRoutes(): string[] {
-    this.ensureLoaded();
-    const routes = new Set<string>();
-    
-    for (const key of this.cache.keys()) {
-      const route = key.split('_')[0];
-      routes.add(route);
+    // Check if already loading
+    if (this.loading.has(key)) {
+      const result = await this.loading.get(key)!;
+      return result?.flights || [];
     }
     
-    return Array.from(routes);
+    // Load from static file
+    const loadPromise = this.loadRoute(origin, destination, date);
+    this.loading.set(key, loadPromise);
+    
+    const result = await loadPromise;
+    this.loading.delete(key);
+    
+    return result?.flights || [];
   }
 
   /**
    * Check if we have data for a route
    */
-  hasRoute(origin: string, destination: string): boolean {
-    this.ensureLoaded();
-    
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(`${origin}-${destination}_`)) return true;
-      if (key.startsWith(`${destination}-${origin}_`)) return true;
-    }
-    return false;
+  async hasRoute(origin: string, destination: string, date: string): Promise<boolean> {
+    const flights = await this.getFlights(origin, destination, date);
+    return flights.length > 0;
   }
 
-  /**
-   * Get cache statistics
-   */
-  getStats() {
-    this.ensureLoaded();
-    
-    let totalFlights = 0;
-    const routes = new Set<string>();
-    
-    for (const [key, data] of this.cache.entries()) {
-      totalFlights += data.flights.length;
-      routes.add(key.split('_')[0]);
-    }
-    
-    return {
-      routes: routes.size,
-      totalFlights,
-      lastUpdated: this.getLastUpdated()
-    };
-  }
-
-  private ensureLoaded() {
-    if (Date.now() - this.lastLoad > this.TTL) {
-      this.loadCache();
-    }
-  }
-
-  private loadCache() {
-    this.cache.clear();
-    
+  private async loadRoute(origin: string, destination: string, date: string): Promise<RouteCache | null> {
     try {
-      if (!fs.existsSync(DATA_DIR)) {
-        console.log('[Cache] Data directory not found:', DATA_DIR);
-        return;
-      }
-
-      const files = fs.readdirSync(DATA_DIR);
+      // Try forward route
+      const forwardKey = `${origin}-${destination}_${date}`;
+      const forwardData = await this.fetchRouteFile(origin, destination, date);
       
-      for (const file of files) {
-        if (!file.endsWith('.json') || file === 'index.json') continue;
-        
-        try {
-          const content = fs.readFileSync(path.join(DATA_DIR, file), 'utf-8');
-          const data: RouteCache = JSON.parse(content);
-          const key = `${data.route}_${data.date}`;
-          this.cache.set(key, data);
-        } catch (e) {
-          console.error(`[Cache] Error loading ${file}:`, e);
-        }
+      if (forwardData) {
+        this.cache.set(forwardKey, forwardData);
+        return forwardData;
       }
       
-      this.lastLoad = Date.now();
-      console.log(`[Cache] Loaded ${this.cache.size} route files`);
+      // Try reverse route
+      const reverseKey = `${destination}-${origin}_${date}`;
+      const reverseData = await this.fetchRouteFile(destination, origin, date);
+      
+      if (reverseData) {
+        this.cache.set(reverseKey, reverseData);
+        return reverseData;
+      }
+      
+      return null;
     } catch (error) {
       console.error('[Cache] Load error:', error);
+      return null;
     }
   }
 
-  private getLastUpdated(): string | null {
+  private async fetchRouteFile(origin: string, destination: string, date: string): Promise<RouteCache | null> {
     try {
-      const indexPath = path.join(DATA_DIR, 'index.json');
-      if (fs.existsSync(indexPath)) {
-        const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
-        return index.lastUpdated;
+      const url = `/data/${origin}-${destination}_${date}.json`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        return null;
       }
-    } catch {}
-    return null;
+      
+      return await response.json() as RouteCache;
+    } catch {
+      return null;
+    }
   }
 }
 
-export const flightCache = new FlightCache();
+export const flightCache = new FlightCacheClient();

@@ -1,0 +1,51 @@
+{
+  "route": "LHR-JFK",
+  "date": "2025-04-15",
+  "flights": [
+    {
+      "id": "gf-1",
+      "airline": "British Airways",
+      "price": 485,
+      "currency": "GBP",
+      "departureTime": "10:30",
+      "arrivalTime": "13:45",
+      "duration": "7h 15m",
+      "stops": 0,
+      "source": "Google Flights"
+    },
+    {
+      "id": "gf-2",
+      "airline": "Virgin Atlantic",
+      "price": 520,
+      "currency": "GBP",
+      "departureTime": "14:00",
+      "arrivalTime": "17:15",
+      "duration": "7h 15m",
+      "stops": 0,
+      "source": "Google Flights"
+    },
+    {
+      "id": "gf-3",
+      "airline": "American Airlines",
+      "price": 495,
+      "currency": "GBP",
+      "departureTime": "11:20",
+      "arrivalTime": "14:35",
+      "duration": "7h 15m",
+      "stops": 0,
+      "source": "Google Flights"
+    },
+    {
+      "id": "gf-4",
+      "airline": "Delta",
+      "price": 510,
+      "currency": "GBP",
+      "departureTime": "19:30",
+      "arrivalTime": "22:45",
+      "duration": "7h 15m",
+      "stops": 0,
+      "source": "Google Flights"
+    }
+  ],
+  "scrapedAt": "2025-03-25T10:00:00Z"
+}
