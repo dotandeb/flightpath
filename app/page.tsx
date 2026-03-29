@@ -18,6 +18,7 @@ interface Flight {
   currency: string;
   source: string;
   bookingLink: string;
+  direction?: 'outbound' | 'return';
 }
 
 interface SplitTicketLeg {
@@ -27,6 +28,7 @@ interface SplitTicketLeg {
   flightNumber: string;
   price: number;
   layover: string | null;
+  saving?: number;
 }
 
 interface SplitTicket {
@@ -38,6 +40,7 @@ interface SplitTicket {
   savings: number;
   totalDuration: string;
   bookingLink: string;
+  direction?: 'outbound' | 'return';
 }
 
 interface Passengers {
@@ -351,10 +354,13 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   
-  const [flights, setFlights] = useState<Flight[]>([]);
-  const [splitTickets, setSplitTickets] = useState<SplitTicket[]>([]);
+  const [outboundFlights, setOutboundFlights] = useState<Flight[]>([]);
+  const [returnFlights, setReturnFlights] = useState<Flight[]>([]);
+  const [outboundSplitTickets, setOutboundSplitTickets] = useState<SplitTicket[]>([]);
+  const [returnSplitTickets, setReturnSplitTickets] = useState<SplitTicket[]>([]);
   const [error, setError] = useState('');
   const [searchMeta, setSearchMeta] = useState<any>(null);
+  const [isRoundTrip, setIsRoundTrip] = useState(false);
 
   // Auto-set return date when departure date changes
   useEffect(() => {
@@ -379,6 +385,66 @@ export default function Home() {
     return found?.code || upper.slice(0, 3);
   };
 
+  const parseFlights = (data: any, direction: 'outbound' | 'return'): { flights: Flight[], splitTickets: SplitTicket[] } => {
+    // Parse flights
+    const parsedFlights: Flight[] = (data.flights || []).map((f: any) => {
+      const segment = f.itineraries?.[0]?.segments?.[0];
+      if (!segment) return null;
+      
+      const depTime = new Date(segment.departure.at);
+      const arrTime = new Date(segment.arrival.at);
+      const isNextDay = arrTime.getDate() !== depTime.getDate();
+      
+      return {
+        id: f.id,
+        airline: getAirlineName(segment.carrierCode),
+        flightNumber: `${segment.carrierCode}${segment.number}`,
+        from: segment.departure.iataCode,
+        to: segment.arrival.iataCode,
+        departure: {
+          airport: segment.departure.iataCode,
+          time: format(depTime, 'HH:mm'),
+          date: format(depTime, 'yyyy-MM-dd'),
+        },
+        arrival: {
+          airport: segment.arrival.iataCode,
+          time: format(arrTime, 'HH:mm'),
+          date: isNextDay ? 'next day' : format(arrTime, 'yyyy-MM-dd'),
+        },
+        duration: formatDuration(f.itineraries[0].duration),
+        stops: segment.numberOfStops || 0,
+        price: parseInt(f.price?.total) || 0,
+        currency: f.price?.currency || 'GBP',
+        source: f.source,
+        bookingLink: f._extended?.bookingLink || f.bookingLink || '#',
+        direction,
+      };
+    }).filter(Boolean);
+    
+    // Parse split tickets
+    const parsedSplitTickets: SplitTicket[] = (data.optimizations?.splitTickets || []).map((st: any) => ({
+      id: st.id,
+      hub: st.hub,
+      hubName: st.hubName || getAirportName(st.hub),
+      tickets: st.tickets.map((t: any, i: number) => ({
+        from: t.from,
+        to: t.to,
+        airline: t.airline,
+        flightNumber: t.flightNumber,
+        price: t.price,
+        layover: t.layover,
+        saving: t.saving || 0,
+      })),
+      totalPrice: st.totalPrice,
+      savings: st.savings,
+      totalDuration: st.totalDuration,
+      bookingLink: st.bookingLink,
+      direction,
+    }));
+
+    return { flights: parsedFlights, splitTickets: parsedSplitTickets };
+  };
+
   const searchFlights = async () => {
     if (!origin || !destination) {
       setError('Please enter origin and destination');
@@ -387,94 +453,72 @@ export default function Home() {
 
     setLoading(true);
     setError('');
-    setFlights([]);
-    setSplitTickets([]);
+    setOutboundFlights([]);
+    setReturnFlights([]);
+    setOutboundSplitTickets([]);
+    setReturnSplitTickets([]);
     setLoadingMessage('Searching for flights...');
 
     try {
       const originCode = getAirportCode(origin);
       const destCode = getAirportCode(destination);
       const totalPassengers = passengers.adults + passengers.children;
+      const hasReturn = returnDate && returnDate > departureDate;
+      setIsRoundTrip(!!hasReturn);
       
       setLoadingMessage(`Searching ${originCode} → ${destCode}...`);
 
-      const params = new URLSearchParams({
+      // Search outbound
+      const outboundParams = new URLSearchParams({
         origin: originCode,
         destination: destCode,
         departureDate,
         travelClass,
         adults: totalPassengers.toString(),
       });
-      if (returnDate) params.append('returnDate', returnDate);
 
-      const res = await fetch(`/api/search?${params}`, { 
+      const outboundRes = await fetch(`/api/search?${outboundParams}`, { 
         signal: AbortSignal.timeout(30000)
       });
 
-      if (!res.ok) {
-        throw new Error(`Search failed: ${res.status}`);
+      if (!outboundRes.ok) {
+        throw new Error(`Search failed: ${outboundRes.status}`);
       }
 
-      const data = await res.json();
-      
-      // Parse flights
-      const parsedFlights: Flight[] = (data.flights || []).map((f: any) => {
-        const segment = f.itineraries?.[0]?.segments?.[0];
-        if (!segment) return null;
+      const outboundData = await outboundRes.json();
+      const outbound = parseFlights(outboundData, 'outbound');
+      setOutboundFlights(outbound.flights);
+      setOutboundSplitTickets(outbound.splitTickets);
+      setSearchMeta(outboundData.meta);
+
+      // Search return if return date is set
+      if (hasReturn) {
+        setLoadingMessage(`Searching return ${destCode} → ${originCode}...`);
         
-        const depTime = new Date(segment.departure.at);
-        const arrTime = new Date(segment.arrival.at);
-        const isNextDay = arrTime.getDate() !== depTime.getDate();
-        
-        return {
-          id: f.id,
-          airline: getAirlineName(segment.carrierCode),
-          flightNumber: `${segment.carrierCode}${segment.number}`,
-          from: segment.departure.iataCode,
-          to: segment.arrival.iataCode,
-          departure: {
-            airport: segment.departure.iataCode,
-            time: format(depTime, 'HH:mm'),
-            date: format(depTime, 'yyyy-MM-dd'),
-          },
-          arrival: {
-            airport: segment.arrival.iataCode,
-            time: format(arrTime, 'HH:mm'),
-            date: isNextDay ? 'next day' : format(arrTime, 'yyyy-MM-dd'),
-          },
-          duration: formatDuration(f.itineraries[0].duration),
-          stops: segment.numberOfStops || 0,
-          price: parseInt(f.price?.total) || 0,
-          currency: f.price?.currency || 'GBP',
-          source: f.source,
-          bookingLink: f._extended?.bookingLink || f.bookingLink || '#',
-        };
-      }).filter(Boolean);
+        const returnParams = new URLSearchParams({
+          origin: destCode,
+          destination: originCode,
+          departureDate: returnDate,
+          travelClass,
+          adults: totalPassengers.toString(),
+        });
+
+        const returnRes = await fetch(`/api/search?${returnParams}`, { 
+          signal: AbortSignal.timeout(30000)
+        });
+
+        if (returnRes.ok) {
+          const returnData = await returnRes.json();
+          const returnResults = parseFlights(returnData, 'return');
+          setReturnFlights(returnResults.flights);
+          setReturnSplitTickets(returnResults.splitTickets);
+        }
+      }
       
-      // Parse split tickets
-      const parsedSplitTickets: SplitTicket[] = (data.optimizations?.splitTickets || []).map((st: any) => ({
-        id: st.id,
-        hub: st.hub,
-        hubName: st.hubName || getAirportName(st.hub),
-        tickets: st.tickets.map((t: any, i: number) => ({
-          from: t.from,
-          to: t.to,
-          airline: t.airline,
-          flightNumber: t.flightNumber,
-          price: t.price,
-          layover: t.layover,
-        })),
-        totalPrice: st.totalPrice,
-        savings: st.savings,
-        totalDuration: st.totalDuration,
-        bookingLink: st.bookingLink,
-      }));
+      const totalResults = outbound.flights.length + outbound.splitTickets.length + 
+                          (hasReturn ? returnFlights.length + returnSplitTickets.length : 0);
       
-      setSearchMeta(data.meta);
-      setFlights(parsedFlights);
-      setSplitTickets(parsedSplitTickets);
-      
-      if (parsedFlights.length === 0 && parsedSplitTickets.length === 0) {
+      if (totalResults === 0) {
         setError('No flights found. Try different dates or airports.');
       }
     } catch (e: any) {
@@ -494,6 +538,139 @@ export default function Home() {
     };
     return labels[c] || c;
   };
+
+  const renderSplitTickets = (tickets: SplitTicket[], title: string, direction: 'outbound' | 'return') => (
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles className="w-5 h-5 text-amber-400" />
+        <h2 className="text-xl font-bold text-slate-100">{title}</h2>
+        <span className="text-sm text-slate-400">({direction === 'outbound' ? 'Outbound' : 'Return'})</span>
+      </div>
+
+      <div className="space-y-4">
+        {tickets.map(ticket => (
+          <div key={ticket.id} className="bg-gradient-to-r from-amber-900/30 via-orange-900/20 to-amber-900/30 p-5 rounded-2xl border border-amber-700/30">
+            {/* Header with total savings */}
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="bg-green-500/20 text-green-300 text-sm font-bold px-3 py-1 rounded-full">
+                    Save £{ticket.savings.toLocaleString()} total
+                  </span>
+                  <span className="text-sm text-slate-400">Via {ticket.hub}</span>
+                </div>
+                <p className="text-sm text-slate-500">Book separate tickets via {ticket.hubName}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-bold text-amber-400">£{ticket.totalPrice.toLocaleString()}</p>
+                <p className="text-xs text-slate-500">Total for all tickets</p>
+              </div>
+            </div>
+
+            {/* Individual tickets with per-ticket savings */}
+            <div className="space-y-3">
+              {ticket.tickets.map((t, i) => (
+                <div key={i} className="bg-slate-800/50 p-3 rounded-xl border-l-4 border-amber-500">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center text-amber-300 font-bold text-sm">
+                        {i + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-100">{t.from} → {t.to}</p>
+                        <p className="text-sm text-slate-400">{t.airline} {t.flightNumber}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {t.layover && (
+                        <div className="flex items-center gap-1 text-sm text-amber-400">
+                          <Clock className="w-4 h-4" />
+                          Layover: {t.layover}
+                        </div>
+                      )}
+                      <div className="text-right">
+                        <p className="font-bold text-lg text-slate-100">£{t.price.toLocaleString()}</p>
+                        {t.saving && t.saving > 0 && (
+                          <p className="text-xs text-green-400">Save £{t.saving.toLocaleString()}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Booking link */}
+            <a
+              href={ticket.bookingLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 hover:text-amber-300 rounded-lg text-sm font-medium transition-colors"
+            >
+              Check prices on Google Flights <ArrowRight className="w-4 h-4" />
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderFlights = (flights: Flight[], title: string, direction: 'outbound' | 'return') => (
+    <div className="mb-8">
+      <h2 className="text-xl font-bold text-slate-100 mb-4">{title} <span className="text-sm text-slate-400">({direction === 'outbound' ? 'Outbound' : 'Return'})</span></h2>
+      <div className="space-y-3">
+        {flights.map((flight, idx) => (
+          <div 
+            key={flight.id} 
+            className={`bg-slate-800/80 p-5 rounded-2xl border transition-all hover:border-purple-500/50 ${idx === 0 ? 'border-purple-500/50 ring-1 ring-purple-500/20' : 'border-slate-700'}`}
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center">
+                  <Plane className="w-6 h-6 text-purple-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-lg text-slate-100">{flight.airline}</p>
+                  <p className="text-sm text-slate-400">{flight.flightNumber} · {flight.stops === 0 ? 'Direct' : `${flight.stops} stop`}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-8">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-slate-100">{flight.departure.time}</p>
+                  <p className="text-sm text-slate-400">{flight.from}</p>
+                </div>
+                
+                <div className="flex flex-col items-center text-slate-500">
+                  <p className="text-xs">{flight.duration}</p>
+                  <div className="w-20 h-0.5 bg-slate-600 my-1 relative">
+                    <div className="absolute -right-1 -top-1 w-2 h-2 bg-slate-600 rounded-full" />
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-slate-100">{flight.arrival.time}</p>
+                  <p className="text-sm text-slate-400">{flight.to} {flight.arrival.date === 'next day' && <span className="text-xs text-orange-400">+1</span>}</p>
+                </div>
+              </div>
+              
+              <div className="text-right">
+                <p className="text-3xl font-bold text-purple-400">£{flight.price.toLocaleString()}</p>
+                <a
+                  href={flight.bookingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-purple-400 hover:text-purple-300 mt-1"
+                >
+                  Book on Google Flights <ArrowRight className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -609,140 +786,31 @@ export default function Home() {
         )}
 
         {/* Results Header */}
-        {(flights.length > 0 || splitTickets.length > 0) && (
+        {(outboundFlights.length > 0 || outboundSplitTickets.length > 0 || returnFlights.length > 0 || returnSplitTickets.length > 0) && (
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-slate-100">
-              {flights.length} flight{flights.length !== 1 ? 's' : ''} 
-              {splitTickets.length > 0 && <> & {splitTickets.length} split ticket option{splitTickets.length !== 1 ? 's' : ''}</>}
+              {isRoundTrip ? 'Round Trip Results' : 'One Way Results'}
             </h2>
             <p className="text-slate-400">
-              {searchMeta?.route} · {getClassLabel(travelClass)} · {passengers.adults + passengers.children + passengers.infants} passenger{passengers.adults + passengers.children + passengers.infants !== 1 ? 's' : ''}
+              {searchMeta?.route} {isRoundTrip && '→ ' + searchMeta?.route?.split('-').reverse().join('-')} · {getClassLabel(travelClass)} · {passengers.adults + passengers.children + passengers.infants} passenger{passengers.adults + passengers.children + passengers.infants !== 1 ? 's' : ''}
             </p>
           </div>
         )}
 
-        {/* Regular Flights */}
-        {flights.length > 0 && (
-          <div className="mb-8">
-            <div className="space-y-3">
-              {flights.map((flight, idx) => (
-                <div 
-                  key={flight.id} 
-                  className={`bg-slate-800/80 p-5 rounded-2xl border transition-all hover:border-purple-500/50 ${idx === 0 ? 'border-purple-500/50 ring-1 ring-purple-500/20' : 'border-slate-700'}`}
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center">
-                        <Plane className="w-6 h-6 text-purple-400" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-lg text-slate-100">{flight.airline}</p>
-                        <p className="text-sm text-slate-400">{flight.flightNumber} · {flight.stops === 0 ? 'Direct' : `${flight.stops} stop`}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-8">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-slate-100">{flight.departure.time}</p>
-                        <p className="text-sm text-slate-400">{flight.from}</p>
-                      </div>
-                      
-                      <div className="flex flex-col items-center text-slate-500">
-                        <p className="text-xs">{flight.duration}</p>
-                        <div className="w-20 h-0.5 bg-slate-600 my-1 relative">
-                          <div className="absolute -right-1 -top-1 w-2 h-2 bg-slate-600 rounded-full" />
-                        </div>
-                      </div>
-                      
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-slate-100">{flight.arrival.time}</p>
-                        <p className="text-sm text-slate-400">{flight.to} {flight.arrival.date === 'next day' && <span className="text-xs text-orange-400">+1</span>}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-purple-400">£{flight.price.toLocaleString()}</p>
-                      <a
-                        href={flight.bookingLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm font-medium text-purple-400 hover:text-purple-300 mt-1"
-                      >
-                        Book on {flight.airline} <ArrowRight className="w-4 h-4" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* OUTBOUND - Split Tickets First */}
+        {outboundSplitTickets.length > 0 && renderSplitTickets(outboundSplitTickets, 'Split Ticket Savings', 'outbound')}
+        
+        {/* OUTBOUND - Regular Flights */}
+        {outboundFlights.length > 0 && renderFlights(outboundFlights, 'Direct Flights', 'outbound')}
 
-        {/* Split Tickets */}
-        {splitTickets.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-5 h-5 text-amber-400" />
-              <h2 className="text-xl font-bold text-slate-100">Split Ticket Savings</h2>
-            </div>
-
-            <div className="space-y-4">
-              {splitTickets.map(ticket => (
-                <div key={ticket.id} className="bg-gradient-to-r from-amber-900/30 via-orange-900/20 to-amber-900/30 p-5 rounded-2xl border border-amber-700/30">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="bg-amber-500/20 text-amber-300 text-sm font-medium px-3 py-1 rounded-full">Save £{ticket.savings.toLocaleString()}</span>
-                        <span className="text-sm text-slate-400">Via {ticket.hub}</span>
-                      </div>
-                      <p className="text-sm text-slate-500 mt-1">Book separately via {ticket.hubName}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-amber-400">£{ticket.totalPrice.toLocaleString()}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {ticket.tickets.map((t, i) => (
-                      <div key={i} className="bg-slate-800/50 p-3 rounded-xl border-l-4 border-amber-500">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center text-amber-300 font-bold text-sm">
-                              {i + 1}
-                            </div>
-                            <div>
-                              <p className="font-medium text-slate-100">{t.from} → {t.to}</p>
-                              <p className="text-sm text-slate-400">{t.airline} {t.flightNumber}</p>
-                            </div>
-                          </div>
-                          {t.layover && (
-                            <div className="flex items-center gap-1 text-sm text-amber-400">
-                              <Clock className="w-4 h-4" />
-                              Layover: {t.layover}
-                            </div>
-                          )}
-                          <p className="font-bold text-lg text-slate-100">£{t.price.toLocaleString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <a
-                    href={ticket.bookingLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-amber-400 hover:text-amber-300"
-                  >
-                    Check prices on Google Flights <ArrowRight className="w-4 h-4" />
-                  </a>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* RETURN - Split Tickets First */}
+        {isRoundTrip && returnSplitTickets.length > 0 && renderSplitTickets(returnSplitTickets, 'Return Split Ticket Savings', 'return')}
+        
+        {/* RETURN - Regular Flights */}
+        {isRoundTrip && returnFlights.length > 0 && renderFlights(returnFlights, 'Return Direct Flights', 'return')}
 
         {/* Empty state */}
-        {!loading && !error && flights.length === 0 && splitTickets.length === 0 && (
+        {!loading && !error && outboundFlights.length === 0 && outboundSplitTickets.length === 0 && returnFlights.length === 0 && returnSplitTickets.length === 0 && (
           <div className="text-center py-16">
             <div className="w-24 h-24 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <Plane className="w-12 h-12 text-purple-400" />

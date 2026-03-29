@@ -81,31 +81,10 @@ function formatFlight(f: ScraperFlight) {
   };
 }
 
-// Generate direct airline booking links
+// Generate Google Flights booking links (reliable and works for all airlines)
 function getAirlineBookingLink(airlineCode: string, origin: string, destination: string, date: string): string {
-  const airlineUrls: Record<string, string> = {
-    'BA': `https://www.britishairways.com/travel/book/public/en_gb?departure=${origin}&destination=${destination}&outbound=${date}`,
-    'AA': `https://www.aa.com/booking/find-flights?origin=${origin}&destination=${destination}&departure=${date}`,
-    'DL': `https://www.delta.com/flight-search/search?origin=${origin}&destination=${destination}&departureDate=${date}`,
-    'UA': `https://www.united.com/en/us/fsr/choose-flight?f=${origin}&t=${destination}&d=${date}`,
-    'VS': `https://www.virgin-atlantic.com/gb/en/book-your-trip.html`,
-    'AF': `https://wwws.airfrance.us/search/offers?origin=${origin}&destination=${destination}&departureDate=${date}`,
-    'KL': `https://www.klm.us/book-a-flight?origin=${origin}&destination=${destination}&departureDate=${date}`,
-    'LH': `https://www.lufthansa.com/us/en/flight-booking?origin=${origin}&destination=${destination}&date=${date}`,
-    'EK': `https://www.emirates.com/booking/flights?origin=${origin}&destination=${destination}&departure=${date}`,
-    'SQ': `https://www.singaporeair.com/en_UK/sg/plan-travel/flights/search-flights/?origin=${origin}&destination=${destination}&depart=${date}`,
-    'QR': `https://www.qatarairways.com/en-us/booking.html?origin=${origin}&destination=${destination}&departure=${date}`,
-    'CX': `https://www.cathaypacific.com/cx/en_US/book-a-trip.html`,
-    'QF': `https://www.qantas.com/au/en/book-a-flight.html`,
-    'JL': `https://www.jal.co.jp/en/jmb/booking/`,
-    'NH': `https://www.ana.co.jp/en/us/`,
-    'AC': `https://www.aircanada.com/ca/en/aco/home.html`,
-    'IB': `https://www.iberia.com/`,
-    'AY': `https://www.finnair.com/`,
-    'SK': `https://www.flysas.com/`,
-    'TP': `https://www.flytap.com/`,
-  };
-  return airlineUrls[airlineCode] || `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}%20on%20${date}`;
+  // Use Google Flights as the primary booking link - it works for all airlines and routes
+  return `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}%20on%20${date}`;
 }
 
 // Generate flights from route database with real airline links
@@ -230,15 +209,29 @@ function generateSplitTickets(
   for (const hub of relevantHubs.slice(0, 3)) {
     if (hub === origin || hub === destination) continue;
     
-    // Calculate realistic leg prices
-    const leg1Price = Math.round(basePrice * (0.25 + Math.random() * 0.15));
-    const leg2Price = Math.round(basePrice * (0.35 + Math.random() * 0.2));
+    // Calculate realistic leg prices based on typical short-haul vs long-haul ratios
+    // Leg 1: origin -> hub (typically shorter, cheaper)
+    // Leg 2: hub -> destination (typically longer, more expensive)
+    const leg1Ratio = 0.20 + Math.random() * 0.10; // 20-30% of direct price
+    const leg2Ratio = 0.40 + Math.random() * 0.15; // 40-55% of direct price
+    
+    const leg1Price = Math.round(basePrice * leg1Ratio);
+    const leg2Price = Math.round(basePrice * leg2Ratio);
     const totalPrice = leg1Price + leg2Price;
     
     // Only include if there's meaningful savings (>£50)
-    const savings = basePrice - totalPrice;
-    if (savings > 50) {
+    const totalSavings = basePrice - totalPrice;
+    if (totalSavings > 50) {
       const layoverHours = 2 + Math.floor(Math.random() * 4);
+      
+      // Calculate estimated savings per leg (compared to hypothetical direct flights)
+      // Leg 1 direct would typically cost ~35% of the full direct route
+      // Leg 2 direct would typically cost ~55% of the full direct route
+      const leg1DirectEstimate = Math.round(basePrice * 0.35);
+      const leg2DirectEstimate = Math.round(basePrice * 0.55);
+      
+      const leg1Saving = leg1DirectEstimate - leg1Price;
+      const leg2Saving = leg2DirectEstimate - leg2Price;
       
       splitTickets.push({
         id: `split-${origin}-${hub}-${destination}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -251,6 +244,7 @@ function generateSplitTickets(
             airline: getAirlineForLeg(origin, hub),
             flightNumber: getRandomFlightNumber(),
             price: leg1Price,
+            saving: leg1Saving > 0 ? leg1Saving : 0,
             layover: null,
           },
           {
@@ -259,11 +253,12 @@ function generateSplitTickets(
             airline: getAirlineForLeg(hub, destination),
             flightNumber: getRandomFlightNumber(),
             price: leg2Price,
+            saving: leg2Saving > 0 ? leg2Saving : 0,
             layover: `${layoverHours}h 00m`,
           },
         ],
         totalPrice,
-        savings,
+        savings: totalSavings,
         totalDuration: `${Math.floor(basePrice / 40)}h ${(basePrice % 40) * 1.5}m`,
         bookingLink: `https://www.google.com/travel/flights?q=Flights%20from%20${origin}%20to%20${destination}%20via%20${hub}%20on%20${departureDate}`,
       });
