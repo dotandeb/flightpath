@@ -512,14 +512,21 @@ export default function Home() {
           const returnResults = parseFlights(returnData, 'return');
           setReturnFlights(returnResults.flights);
           setReturnSplitTickets(returnResults.splitTickets);
+          
+          const totalResults = outbound.flights.length + outbound.splitTickets.length + 
+                              returnResults.flights.length + returnResults.splitTickets.length;
+          
+          if (totalResults === 0) {
+            setError('No flights found. Try different dates or airports.');
+          }
         }
-      }
-      
-      const totalResults = outbound.flights.length + outbound.splitTickets.length + 
-                          (hasReturn ? returnFlights.length + returnSplitTickets.length : 0);
-      
-      if (totalResults === 0) {
-        setError('No flights found. Try different dates or airports.');
+      } else {
+        // One way - check outbound only
+        const totalResults = outbound.flights.length + outbound.splitTickets.length;
+        
+        if (totalResults === 0) {
+          setError('No flights found. Try different dates or airports.');
+        }
       }
     } catch (e: any) {
       setError(e.message || 'Search failed');

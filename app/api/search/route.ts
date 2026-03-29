@@ -83,10 +83,11 @@ function formatFlight(f: ScraperFlight) {
 
 // Generate Google Flights booking links (reliable and works for all airlines)
 function getAirlineBookingLink(airlineCode: string, origin: string, destination: string, date: string): string {
-  // Use Google Flights as the primary booking link - it works for all airlines and routes
-  // Format: https://www.google.com/travel/flights/search?tfs=CBwQAhooagwIAhIIL20vMDIyczZ4DAISCC9tLzBfNmhjfukBCA0SA2dybXBqDAISCC9tLzAyNHNr&hl=en
-  // Simpler format that works reliably:
-  return `https://www.google.com/travel/flights?q=${origin}%20to%20${destination}%20${date}`;
+  // Use Google Flights search format that actually works
+  // Format: https://www.google.com/travel/flights/search?tfs=... (encoded search params)
+  // Simple working format:
+  const formattedDate = date.replace(/-/g, ''); // YYYYMMDD format
+  return `https://www.google.com/travel/flights?q=${origin}.${destination}.${formattedDate}`;
 }
 
 // Generate flights from route database with real airline links
@@ -262,7 +263,7 @@ function generateSplitTickets(
         totalPrice,
         savings: totalSavings,
         totalDuration: `${Math.floor(basePrice / 40)}h ${(basePrice % 40) * 1.5}m`,
-        bookingLink: `https://www.google.com/travel/flights?q=${origin}%20to%20${destination}%20${departureDate}`,
+        bookingLink: `https://www.google.com/travel/flights?q=${origin}.${destination}.${departureDate.replace(/-/g, '')}`,
       });
     }
   }
