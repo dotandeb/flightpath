@@ -83,10 +83,8 @@ function formatFlight(f: ScraperFlight) {
 
 // Generate Google Flights booking links (reliable and works for all airlines)
 function getAirlineBookingLink(airlineCode: string, origin: string, destination: string, date: string): string {
-  // Use Google Flights search format that actually works
-  // Format: https://www.google.com/travel/flights/search?tfs=... (encoded search params)
-  // Simple working format:
-  const formattedDate = date.replace(/-/g, ''); // YYYYMMDD format
+  // Use Google Flights format: ORIGIN.DESTINATION.YYYYMMDD
+  const formattedDate = date.replace(/-/g, '');
   return `https://www.google.com/travel/flights?q=${origin}.${destination}.${formattedDate}`;
 }
 

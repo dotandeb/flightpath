@@ -804,15 +804,112 @@ export default function Home() {
           </div>
         )}
 
-        {/* OUTBOUND - Split Tickets First */}
-        {outboundSplitTickets.length > 0 && renderSplitTickets(outboundSplitTickets, 'Split Ticket Savings', 'outbound')}
+        {/* COMBINED SPLIT TICKETS SECTION - Outbound & Return Side by Side */}
+        {(outboundSplitTickets.length > 0 || (isRoundTrip && returnSplitTickets.length > 0)) && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="w-5 h-5 text-amber-400" />
+              <h2 className="text-xl font-bold text-slate-100">Split Ticket Savings</h2>
+              {isRoundTrip && <span className="text-sm text-amber-400 font-medium">(Round Trip Combo)</span>}
+            </div>
+            
+            <div className={`grid gap-4 ${isRoundTrip ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+              {/* Outbound Split Tickets */}
+              {outboundSplitTickets.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-400 mb-2 uppercase tracking-wider">Outbound</h3>
+                  <div className="space-y-3">
+                    {outboundSplitTickets.slice(0, 1).map(ticket => (
+                      <div key={ticket.id} className="bg-gradient-to-r from-amber-900/30 via-orange-900/20 to-amber-900/30 p-4 rounded-xl border border-amber-700/30">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <span className="bg-green-500/20 text-green-300 text-xs font-bold px-2 py-1 rounded-full">
+                              Save £{ticket.savings.toLocaleString()}
+                            </span>
+                            <p className="text-xs text-slate-400 mt-1">Via {ticket.hub}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-amber-400">£{ticket.totalPrice.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {ticket.tickets.map((t, i) => (
+                            <div key={i} className="bg-slate-800/50 p-2 rounded-lg border-l-4 border-amber-500">
+                              <div className="flex justify-between items-center text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-6 h-6 bg-amber-500/20 rounded flex items-center justify-center text-amber-300 font-bold text-xs">{i + 1}</span>
+                                  <span className="text-slate-200">{t.from} → {t.to}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-semibold text-slate-100">£{t.price.toLocaleString()}</span>
+                                  {t.saving > 0 && <span className="text-xs text-green-400 ml-2">(Save £{t.saving})</span>}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Return Split Tickets */}
+              {isRoundTrip && returnSplitTickets.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-400 mb-2 uppercase tracking-wider">Return</h3>
+                  <div className="space-y-3">
+                    {returnSplitTickets.slice(0, 1).map(ticket => (
+                      <div key={ticket.id} className="bg-gradient-to-r from-amber-900/30 via-orange-900/20 to-amber-900/30 p-4 rounded-xl border border-amber-700/30">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <span className="bg-green-500/20 text-green-300 text-xs font-bold px-2 py-1 rounded-full">
+                              Save £{ticket.savings.toLocaleString()}
+                            </span>
+                            <p className="text-xs text-slate-400 mt-1">Via {ticket.hub}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-amber-400">£{ticket.totalPrice.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {ticket.tickets.map((t, i) => (
+                            <div key={i} className="bg-slate-800/50 p-2 rounded-lg border-l-4 border-amber-500">
+                              <div className="flex justify-between items-center text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-6 h-6 bg-amber-500/20 rounded flex items-center justify-center text-amber-300 font-bold text-xs">{i + 1}</span>
+                                  <span className="text-slate-200">{t.from} → {t.to}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-semibold text-slate-100">£{t.price.toLocaleString()}</span>
+                                  {t.saving > 0 && <span className="text-xs text-green-400 ml-2">(Save £{t.saving})</span>}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Combined Google Flights Link */}
+            <a
+              href={`https://www.google.com/travel/flights?q=${getAirportCode(origin)}.${getAirportCode(destination)}.${departureDate.replace(/-/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 hover:text-amber-300 rounded-lg text-sm font-medium transition-colors"
+            >
+              Check prices on Google Flights <ArrowRight className="w-4 h-4" />
+            </a>
+          </div>
+        )}
         
         {/* OUTBOUND - Regular Flights */}
         {outboundFlights.length > 0 && renderFlights(outboundFlights, 'Direct Flights', 'outbound')}
 
-        {/* RETURN - Split Tickets First */}
-        {isRoundTrip && returnSplitTickets.length > 0 && renderSplitTickets(returnSplitTickets, 'Return Split Ticket Savings', 'return')}
-        
         {/* RETURN - Regular Flights */}
         {isRoundTrip && returnFlights.length > 0 && renderFlights(returnFlights, 'Return Direct Flights', 'return')}
 
